@@ -143,6 +143,8 @@ http://localhost:5000/api/v1
 | `/interests/my-interests` | GET | Get own interests | ✅ |
 | `/admin/dashboard` | GET | Admin dashboard | ✅ Admin |
 | `/admin/leads` | GET | Get all leads | ✅ Admin |
+| `/google-sheets/initialize` | POST | Create required sheets & headers | ✅ Internal |
+| `/google-sheets/sync-lead` | POST | Add buyer/seller/link rows | ✅ Internal |
 
 **Full API Documentation**: See [PROJECT_DOCUMENTATION.md](./PROJECT_DOCUMENTATION.md)
 
@@ -170,7 +172,16 @@ EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_app_password
+
+# Google Sheets
+GOOGLE_SHEET_ID=your_google_sheet_id
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
+GOOGLE_SHEET_BUYER_TAB=buyers
+GOOGLE_SHEET_SELLER_TAB=sellers
+GOOGLE_SHEET_LINK_TAB=buyer_seller_links
 ```
+
+Note: For write access to Google Sheets, a service account credential is required. A plain API key is not sufficient for append/update operations.
 
 ---
 

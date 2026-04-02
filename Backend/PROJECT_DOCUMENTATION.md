@@ -105,7 +105,6 @@ Update `.env` file with these variables:
 ```ini
 # MongoDB
 MONGODB_URI=mongodb://localhost:27017/real-estate-db
-MONGODB_URI_PROD=your_production_mongodb_uri
 
 # JWT
 JWT_SECRET=your_very_long_secure_random_key_at_least_32_chars
@@ -126,6 +125,104 @@ EMAIL_PASS=your_app_password
 
 # API
 API_PREFIX=/api/v1
+
+# Google Sheets Integration
+GOOGLE_SHEET_ID=your_google_sheet_id
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
+GOOGLE_SHEET_BUYER_TAB=buyers
+GOOGLE_SHEET_SELLER_TAB=sellers
+GOOGLE_SHEET_LINK_TAB=buyer_seller_links
+```
+
+Important: Google Sheets write operations require service account credentials. API key-only access works for limited public read use-cases and is not enough for this project workflow.
+
+---
+
+## 📗 GOOGLE SHEETS WORKFLOW (Buyer, Seller, Buyer-Seller Link)
+
+Spreadsheet tabs used by backend:
+- `buyers`
+- `sellers`
+- `buyer_seller_links`
+
+### Initialize sheet tabs and headers
+
+```http
+POST /api/v1/google-sheets/initialize
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Google Sheets initialized successfully",
+  "data": {
+    "spreadsheetId": "your_sheet_id",
+    "tabs": {
+      "buyers": "buyers",
+      "sellers": "sellers",
+      "buyer_seller_links": "buyer_seller_links"
+    }
+  }
+}
+```
+
+### Sync one buyer + one seller + one relationship row
+
+```http
+POST /api/v1/google-sheets/sync-lead
+Content-Type: application/json
+```
+
+Request:
+```json
+{
+  "buyer": {
+    "id": "buyer_001",
+    "name": "Rahul Sharma",
+    "email": "rahul@example.com",
+    "mobile": "9999999999",
+    "whatsapp": "9999999999"
+  },
+  "seller": {
+    "id": "seller_001",
+    "name": "Anita Verma",
+    "email": "anita@example.com",
+    "mobile": "8888888888",
+    "whatsapp": "8888888888"
+  },
+  "property": {
+    "id": "property_101",
+    "title": "2BHK Apartment",
+    "type": "residential",
+    "purpose": "buy",
+    "price": 5000000,
+    "city": "Delhi"
+  },
+  "interest": {
+    "id": "interest_901",
+    "status": "new",
+    "createdAt": "2026-04-02T10:00:00.000Z"
+  }
+}
+```
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Buyer, seller and relationship rows synced to Google Sheets",
+  "data": {
+    "success": true,
+    "spreadsheetId": "your_sheet_id",
+    "tabs": {
+      "buyers": "buyers",
+      "sellers": "sellers",
+      "buyer_seller_links": "buyer_seller_links"
+    },
+    "linkId": "interest_901"
+  }
+}
 ```
 
 ---

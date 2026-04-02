@@ -19,6 +19,8 @@ Edit `.env` and update these values:
 - `MONGODB_URI`: Your local MongoDB connection string
 - `JWT_SECRET`: Generate a random 32+ character string
 - `CORS_ORIGIN`: Frontend URL (default: http://localhost:5173)
+- `GOOGLE_SHEET_ID`: Google spreadsheet ID
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account JSON (single line)
 
 ### Step 4: Start MongoDB
 ```bash
@@ -53,6 +55,22 @@ Your server should now be running on **http://localhost:5000**
 ### Test Server Health:
 ```bash
 curl http://localhost:5000/api/v1/health
+```
+
+### Initialize Google Sheets Tabs:
+```bash
+curl -X POST http://localhost:5000/api/v1/google-sheets/initialize
+```
+
+### Sync Buyer/Seller Relationship Row:
+```bash
+curl -X POST http://localhost:5000/api/v1/google-sheets/sync-lead \
+  -H "Content-Type: application/json" \
+  -d '{
+    "buyer": { "id": "b1", "name": "Buyer A" },
+    "seller": { "id": "s1", "name": "Seller A" },
+    "property": { "id": "p1", "title": "Flat 101" }
+  }'
 ```
 
 Expected Response:
