@@ -1,11 +1,7 @@
-import React from 'react'
+import HomePage from './pages/Home/HomePage'
 
 const App = () => {
-  return (
-    <div><h1 class="text-3xl font-bold underline text-orange-400">
-      Hello world!
-    </h1></div>
-  )
+  return <HomePage />
 }
 
 export default App

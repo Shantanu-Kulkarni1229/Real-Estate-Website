@@ -1,1 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+:root {
+	--color-primary: #2563eb;
+	--color-surface: #f9fafb;
+	--color-secondary-text: #6b7280;
+	--color-secondary-bg: #dbeafe;
+	--color-cta-orange: #f97316;
+	--color-cta-green: #16a34a;
+	--font-heading: 'Poppins', sans-serif;
+	--font-body: 'Inter', sans-serif;
+}
+
+/* Font application */
+h1, h2, h3, h4, h5, h6 {
+	font-family: var(--font-heading);
+}
+
+body {
+	font-family: var(--font-body);
+}
+
+/* Brand and semantic utility classes */
+.text-primary {
+	color: var(--color-primary);
+}
+
+.bg-primary {
+	background-color: var(--color-primary);
+}
+
+.border-primary {
+	border-color: var(--color-primary);
+}
+
+.text-secondary {
+	color: var(--color-secondary-text);
+}
+
+.bg-secondary {
+	background-color: var(--color-secondary-bg);
+}
+
+.bg-surface {
+	background-color: var(--color-surface);
+}
+
+.btn-cta-orange {
+	background-color: var(--color-cta-orange);
+	color: #ffffff;
+}
+
+.btn-cta-orange:hover {
+	filter: brightness(0.95);
+}
+
+.btn-cta-green {
+	background-color: var(--color-cta-green);
+	color: #ffffff;
+}
+
+.btn-cta-green:hover {
+	filter: brightness(0.95);
+}
+
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
