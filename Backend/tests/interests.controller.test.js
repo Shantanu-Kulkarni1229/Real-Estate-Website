@@ -11,12 +11,21 @@ jest.mock('../models/Property.model', () => ({
 }));
 
 jest.mock('../models/User.model', () => ({
-  findById: jest.fn()
+  findById: jest.fn(),
+  find: jest.fn()
 }));
 
 jest.mock('../utils/googleSheets.utils', () => ({
   initializeGoogleSheets: jest.fn(),
   syncInterestToGoogleSheets: jest.fn()
+}));
+
+jest.mock('../utils/notification.utils', () => ({
+  sendBulkEmailNotifications: jest.fn().mockResolvedValue([]),
+  buildLeadNotificationTemplate: jest.fn(() => ({
+    subject: 'subject',
+    text: 'text'
+  }))
 }));
 
 const Interest = require('../models/Interest.model');
@@ -85,6 +94,9 @@ describe('interests.controller', () => {
     User.findById
       .mockResolvedValueOnce({ firstName: 'Buyer', lastName: 'One' })
       .mockResolvedValueOnce({ firstName: 'Seller', lastName: 'One', email: 'seller@example.com', phone: '8888888888' });
+    User.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([{ email: 'admin@example.com', firstName: 'Admin', lastName: 'One' }])
+    });
 
     syncInterestToGoogleSheets.mockResolvedValue({ success: true });
 

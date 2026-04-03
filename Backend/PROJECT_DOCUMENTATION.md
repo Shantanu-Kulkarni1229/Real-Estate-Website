@@ -21,7 +21,9 @@
 
 ## 🔌 FRONTEND INTEGRATION (CURRENT LIVE CONTRACT)
 
-This section is the canonical, implementation-accurate API contract for frontend work. If any later example in this long document differs, follow this section.
+For frontend implementation, use [FRONTEND_MASTER_DOC.md](./FRONTEND_MASTER_DOC.md) as the single source of truth.
+
+This section is retained as archival reference only.
 
 Base URL:
 ```text

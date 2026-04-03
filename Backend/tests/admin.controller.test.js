@@ -1,5 +1,9 @@
 jest.mock('../models/User.model', () => ({
-  countDocuments: jest.fn()
+  countDocuments: jest.fn(),
+  find: jest.fn(),
+  findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findOne: jest.fn()
 }));
 
 jest.mock('../models/Property.model', () => ({
@@ -9,7 +13,16 @@ jest.mock('../models/Property.model', () => ({
 }));
 
 jest.mock('../models/Interest.model', () => ({
-  countDocuments: jest.fn()
+  countDocuments: jest.fn(),
+  findByIdAndUpdate: jest.fn()
+}));
+
+jest.mock('../utils/notification.utils', () => ({
+  sendEmailNotification: jest.fn().mockResolvedValue({ skipped: true }),
+  buildPropertyReviewTemplate: jest.fn(() => ({
+    subject: 'subject',
+    text: 'text'
+  }))
 }));
 
 const User = require('../models/User.model');
@@ -18,7 +31,11 @@ const Interest = require('../models/Interest.model');
 const {
   getDashboardStats,
   getPropertiesForReview,
-  reviewProperty
+  reviewProperty,
+  getUsers,
+  updateUserStatus,
+  verifySeller,
+  assignLead
 } = require('../controllers/admin.controller');
 
 function createRes() {
@@ -120,5 +137,66 @@ describe('admin.controller', () => {
       expect.any(Object)
     );
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('getUsers should return paginated users', async () => {
+    const req = { query: { role: 'seller', page: '1', limit: '5' } };
+    const res = createRes();
+
+    const chain = {
+      select: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([{ _id: 'u1', role: 'seller' }])
+    };
+
+    User.find.mockReturnValue(chain);
+    User.countDocuments.mockResolvedValue(1);
+
+    await getUsers(req, res);
+
+    expect(User.find).toHaveBeenCalledWith(expect.objectContaining({ role: 'seller' }));
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test('updateUserStatus should reject non-boolean isActive', async () => {
+    const req = {
+      params: { userId: '507f1f77bcf86cd799439011' },
+      body: { isActive: 'yes' }
+    };
+    const res = createRes();
+
+    await updateUserStatus(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('verifySeller should reject non-seller role', async () => {
+    const req = {
+      params: { userId: '507f1f77bcf86cd799439011' },
+      body: { isVerified: true }
+    };
+    const res = createRes();
+
+    User.findById.mockReturnValue({
+      select: jest.fn().mockResolvedValue({ _id: 'u1', role: 'buyer' })
+    });
+
+    await verifySeller(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test('assignLead should reject invalid admin id', async () => {
+    const req = {
+      params: { leadId: '507f1f77bcf86cd799439011' },
+      body: { adminId: 'bad-id' }
+    };
+    const res = createRes();
+
+    await assignLead(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });

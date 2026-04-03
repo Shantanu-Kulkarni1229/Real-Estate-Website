@@ -68,6 +68,7 @@ describe('properties.controller', () => {
     const res = createRes();
 
     const chain = {
+      select: jest.fn().mockReturnThis(),
       sort: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),

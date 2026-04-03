@@ -4,7 +4,11 @@ const authorize = require('../middleware/authorize');
 const {
   getDashboardStats,
   getPropertiesForReview,
-  reviewProperty
+  reviewProperty,
+  getUsers,
+  updateUserStatus,
+  verifySeller,
+  assignLead
 } = require('../controllers/admin.controller');
 
 const router = express.Router();
@@ -13,7 +17,14 @@ router.use(authenticate);
 router.use(authorize('admin'));
 
 router.get('/dashboard', getDashboardStats);
+
+router.get('/users', getUsers);
+router.patch('/users/:userId/status', updateUserStatus);
+router.patch('/users/:userId/verify-seller', verifySeller);
+
 router.get('/properties', getPropertiesForReview);
 router.patch('/properties/:propertyId/review', reviewProperty);
+
+router.patch('/leads/:leadId/assign', assignLead);
 
 module.exports = router;

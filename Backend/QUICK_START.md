@@ -57,7 +57,8 @@ npm run seed-test-users
 
 ## 📚 Documentation Structure
 
-- **PROJECT_DOCUMENTATION.md** - Complete API documentation & schema
+- **FRONTEND_MASTER_DOC.md** - Canonical frontend integration contract (single source of truth)
+- **PROJECT_DOCUMENTATION.md** - Full backend reference and historical notes
 - **server.js** - Main server entry point
 - **models/** - MongoDB Schemas (To be created)
 - **controllers/** - Business logic (To be created)

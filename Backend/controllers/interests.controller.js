@@ -6,6 +6,10 @@ const {
   initializeGoogleSheets,
   syncInterestToGoogleSheets
 } = require('../utils/googleSheets.utils');
+const {
+  sendBulkEmailNotifications,
+  buildLeadNotificationTemplate
+} = require('../utils/notification.utils');
 
 function buildLeadFilters(query) {
   const filters = {};
@@ -140,6 +144,30 @@ async function createInterest(req, res) {
       sheetSync = { synced: true, data: syncResult };
     } catch (sheetError) {
       sheetSync = { synced: false, error: sheetError.message };
+    }
+
+    try {
+      const admins = await User.find({ role: 'admin', isActive: true }).select('email firstName lastName');
+      if (admins.length > 0) {
+        const template = buildLeadNotificationTemplate({
+          buyerName: name,
+          propertyTitle: property.title,
+          city: property.city,
+          status: lead.status
+        });
+
+        const emails = admins
+          .filter((admin) => admin.email)
+          .map((admin) => ({
+            to: admin.email,
+            subject: template.subject,
+            text: template.text
+          }));
+
+        await sendBulkEmailNotifications(emails);
+      }
+    } catch (emailError) {
+      console.warn('Admin lead notification failed:', emailError.message);
     }
 
     return res.status(201).json({

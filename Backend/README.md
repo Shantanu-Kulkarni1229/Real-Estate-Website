@@ -124,6 +124,11 @@ Backend/
 
 ## 📚 API Documentation
 
+Frontend team should use only this canonical file:
+- [FRONTEND_MASTER_DOC.md](./FRONTEND_MASTER_DOC.md)
+
+Other docs may contain historical examples and should be treated as secondary references.
+
 ### Base URL
 ```
 http://localhost:5000/api/v1
@@ -149,11 +154,15 @@ http://localhost:5000/api/v1
 | `/admin/properties` | GET | Get properties for admin review | ✅ Admin |
 | `/admin/properties/:propertyId/review` | PATCH | Approve/Reject property | ✅ Admin |
 | `/admin/dashboard` | GET | Dashboard analytics (users/properties/leads/conversion) | ✅ Admin |
+| `/admin/users` | GET | List users with filters | ✅ Admin |
+| `/admin/users/:userId/status` | PATCH | Activate/Deactivate user | ✅ Admin |
+| `/admin/users/:userId/verify-seller` | PATCH | Verify/Unverify seller account | ✅ Admin |
+| `/admin/leads/:leadId/assign` | PATCH | Assign lead to admin | ✅ Admin |
 | `/google-sheets/initialize` | POST | Create required sheets & headers | ✅ Internal |
 | `/google-sheets/sync-lead` | POST | Add buyer/seller/link rows | ✅ Internal |
 | `/uploads/property-images` | POST | Upload seller property images to Cloudinary | ✅ |
 
-**Full API Documentation**: See [PROJECT_DOCUMENTATION.md](./PROJECT_DOCUMENTATION.md)
+**Backend Reference Documentation**: See [PROJECT_DOCUMENTATION.md](./PROJECT_DOCUMENTATION.md)
 
 ---
 

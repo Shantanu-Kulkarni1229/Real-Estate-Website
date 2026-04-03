@@ -191,6 +191,7 @@ async function getProperties(req, res) {
 
     const [items, total] = await Promise.all([
       Property.find(filters)
+        .select('-contactNumber')
         .sort({ [sortBy]: sortOrder })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -228,7 +229,9 @@ async function getPropertyById(req, res) {
   }
 
   try {
-    const property = await Property.findById(propertyId).populate('createdBy', 'firstName lastName businessName phone');
+    const property = await Property.findById(propertyId)
+      .select('-contactNumber')
+      .populate('createdBy', 'firstName lastName businessName');
     if (!property) {
       return res.status(404).json({
         success: false,
