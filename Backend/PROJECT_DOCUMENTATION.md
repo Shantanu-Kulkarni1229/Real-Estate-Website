@@ -132,9 +132,18 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
 GOOGLE_SHEET_BUYER_TAB=buyers
 GOOGLE_SHEET_SELLER_TAB=sellers
 GOOGLE_SHEET_LINK_TAB=buyer_seller_links
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_PROPERTY_FOLDER=real-estate/properties
+CLOUDINARY_PROPERTY_THUMBNAIL_FOLDER=real-estate/properties/thumbnails
 ```
 
 Important: Google Sheets write operations require service account credentials. API key-only access works for limited public read use-cases and is not enough for this project workflow.
+
+Important: Cloudinary is required for seller property image uploads. Use the returned secure URLs when storing image references in property documents.
 
 ---
 
@@ -149,6 +158,38 @@ Spreadsheet tabs used by backend:
 
 ```http
 POST /api/v1/google-sheets/initialize
+```
+
+---
+
+## ☁️ CLOUDINARY WORKFLOW (Property Images)
+
+### Upload property images
+
+```http
+POST /api/v1/uploads/property-images
+Content-Type: multipart/form-data
+```
+
+Form field:
+- `images` - one or more image files, max 10
+
+Response:
+```json
+{
+  "success": true,
+  "message": "Property images uploaded successfully",
+  "data": [
+    {
+      "publicId": "real-estate/properties/sample",
+      "url": "https://res.cloudinary.com/...",
+      "originalName": "house-front.jpg",
+      "width": 1200,
+      "height": 900,
+      "bytes": 123456
+    }
+  ]
+}
 ```
 
 Response:

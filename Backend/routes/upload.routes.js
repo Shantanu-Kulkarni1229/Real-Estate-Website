@@ -1,0 +1,19 @@
+const express = require('express');
+const {
+  uploadPropertyImagesController,
+  uploadPropertyImageMiddleware,
+  handleMulterError
+} = require('../controllers/upload.controller');
+
+const router = express.Router();
+
+router.post('/property-images', uploadPropertyImageMiddleware.array('images', 10), (req, res) => {
+  const uploadError = handleMulterError(req.fileValidationError, res);
+  if (uploadError) {
+    return uploadError;
+  }
+
+  return uploadPropertyImagesController(req, res);
+});
+
+module.exports = router;

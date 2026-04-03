@@ -145,6 +145,7 @@ http://localhost:5000/api/v1
 | `/admin/leads` | GET | Get all leads | ✅ Admin |
 | `/google-sheets/initialize` | POST | Create required sheets & headers | ✅ Internal |
 | `/google-sheets/sync-lead` | POST | Add buyer/seller/link rows | ✅ Internal |
+| `/uploads/property-images` | POST | Upload seller property images to Cloudinary | ✅ |
 
 **Full API Documentation**: See [PROJECT_DOCUMENTATION.md](./PROJECT_DOCUMENTATION.md)
 
@@ -179,9 +180,18 @@ GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"..."}
 GOOGLE_SHEET_BUYER_TAB=buyers
 GOOGLE_SHEET_SELLER_TAB=sellers
 GOOGLE_SHEET_LINK_TAB=buyer_seller_links
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_PROPERTY_FOLDER=real-estate/properties
+CLOUDINARY_PROPERTY_THUMBNAIL_FOLDER=real-estate/properties/thumbnails
 ```
 
 Note: For write access to Google Sheets, a service account credential is required. A plain API key is not sufficient for append/update operations.
+
+Note: Cloudinary is used for seller property image uploads. The backend accepts image files and stores the returned secure URLs in the property records.
 
 ---
 

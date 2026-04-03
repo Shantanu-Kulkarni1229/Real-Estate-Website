@@ -60,6 +60,7 @@ app.get('/api/v1/health', (req, res) => {
 });
 
 app.use('/api/v1/google-sheets', require('./routes/googleSheets.routes'));
+app.use('/api/v1/uploads', require('./routes/upload.routes'));
 
 // TODO: Import and use route files when created
 // app.use('/api/v1/auth', require('./routes/auth.routes'));

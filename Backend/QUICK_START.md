@@ -21,6 +21,9 @@ Edit `.env` and update these values:
 - `CORS_ORIGIN`: Frontend URL (default: http://localhost:5173)
 - `GOOGLE_SHEET_ID`: Google spreadsheet ID
 - `GOOGLE_SERVICE_ACCOUNT_JSON`: Service account JSON (single line)
+- `CLOUDINARY_CLOUD_NAME`: Cloudinary cloud name
+- `CLOUDINARY_API_KEY`: Cloudinary API key
+- `CLOUDINARY_API_SECRET`: Cloudinary API secret
 
 ### Step 4: Start MongoDB
 ```bash
@@ -71,6 +74,15 @@ curl -X POST http://localhost:5000/api/v1/google-sheets/sync-lead \
     "seller": { "id": "s1", "name": "Seller A" },
     "property": { "id": "p1", "title": "Flat 101" }
   }'
+```
+
+### Upload Property Images to Cloudinary:
+```bash
+# Example using PowerShell with multipart form data is easier via Postman.
+# Endpoint:
+POST http://localhost:5000/api/v1/uploads/property-images
+Field name: images
+File type: image/*
 ```
 
 Expected Response:
