@@ -19,6 +19,97 @@
 
 ---
 
+## 🔌 FRONTEND INTEGRATION (CURRENT LIVE CONTRACT)
+
+This section is the canonical, implementation-accurate API contract for frontend work. If any later example in this long document differs, follow this section.
+
+Base URL:
+```text
+http://localhost:5000/api/v1
+```
+
+Auth header for protected routes:
+```text
+Authorization: Bearer <jwt_token>
+```
+
+### Property APIs
+
+1. `GET /properties` (public)
+- Returns approved properties by default.
+- Supports filters:
+  - `city`, `state`, `propertyType`, `listingType`
+  - `minPrice`, `maxPrice`
+  - `bhk`, `furnishing`
+  - `status`, `verified`
+  - `search`, `page`, `limit`, `sortBy`, `sortOrder`
+
+2. `GET /properties/:propertyId` (public)
+- Returns one approved property detail and increments `viewsCount`.
+
+3. `POST /properties` (seller/admin)
+- Creates property in `pending` status.
+
+4. `PUT /properties/:propertyId` (owner seller/admin)
+- Updates allowed property fields.
+
+5. `DELETE /properties/:propertyId` (owner seller/admin)
+- Deletes property.
+
+### Lead/Interest APIs
+
+1. `POST /interests` (buyer/renter)
+- Exact frontend payload:
+```json
+{
+  "name": "Rahul Sharma",
+  "mobileNumber": "9999999999",
+  "email": "rahul@example.com",
+  "whatsappNumber": "9999999999",
+  "message": "Optional message",
+  "propertyId": "680000000000000000000001",
+  "userId": "680000000000000000000002"
+}
+```
+- Notes:
+  - `userId` is optional when JWT user is present.
+  - Duplicate interest for same buyer + property is blocked.
+  - Seller cannot create interest on own property.
+  - On success, backend auto-syncs buyer/seller/link rows to Google Sheets.
+
+2. `GET /interests/my-interests` (buyer/renter)
+- Returns logged-in user leads with property and seller summary.
+
+3. `GET /interests` (admin)
+- Returns all leads with pagination.
+- Optional filters: `status`, `propertyId`, `sellerId`, `assignedToAdmin`.
+
+4. `PATCH /interests/:leadId/status` (admin)
+- Allowed statuses: `new`, `contacted`, `closed`.
+- Optional: `assignedToAdmin`.
+
+### Current Status and Lifecycle
+
+- Property status lifecycle: `pending` -> `approved` or `rejected`.
+- Lead status lifecycle: `new` -> `contacted` -> `closed`.
+
+### Schema Snapshot (Implemented)
+
+Property key fields:
+- basic: `title`, `description`, `propertyType`, `listingType`, `price`, `negotiable`
+- location: `address`, `city`, `state`, `pincode`, `locality`, `landmark`, `latitude`, `longitude`
+- specs: `specifications.residential`, `specifications.plot`, `specifications.commercial`
+- media: `images`, `videos`, `virtualTourUrl`
+- ownership: `ownerName`, `contactNumber`, `ownershipType`, `availableFrom`
+- metadata: `createdBy`, `sellerId`, `status`, `verified`, `viewsCount`
+
+Interest key fields:
+- `buyerId`, `propertyId`, `sellerId`
+- `name`, `mobile`, `email`, `whatsapp`, `message`
+- `status`, `assignedToAdmin`, `createdAt`, `updatedAt`
+
+---
+
 ## 🚀 PROJECT SETUP
 
 ### Installation Steps:
@@ -629,7 +720,7 @@ Response (201 Created):
     "_id": "507f1f77bcf86cd799439012",
     "title": "Beautiful 2BHK Apartment",
     "sellerId": "507f1f77bcf86cd799439011",
-    "status": "active",
+    "status": "pending",
     "createdAt": "2024-01-15T10:30:00Z"
   }
 }
@@ -637,7 +728,7 @@ Response (201 Created):
 
 #### 2️⃣ **Get All Properties (with filters)**
 ```
-GET /properties?city=Delhi&propertyType=residential&purpose=buy&minPrice=1000000&maxPrice=5000000&page=1&limit=10
+GET /properties?city=Delhi&propertyType=apartment&listingType=sell&minPrice=1000000&maxPrice=5000000&page=1&limit=10
 
 Response (200 OK):
 {
@@ -692,7 +783,7 @@ Content-Type: application/json
 Request Body:
 {
   "price": 4800000,
-  "status": "inactive"
+  "description": "Updated description from seller"
 }
 
 Response (200 OK):
@@ -727,6 +818,10 @@ Content-Type: application/json
 
 Request Body:
 {
+  "name": "Rahul Sharma",
+  "mobileNumber": "9999999999",
+  "email": "rahul@example.com",
+  "whatsappNumber": "9999999999",
   "propertyId": "507f1f77bcf86cd799439012",
   "message": "I am interested in this property. Can you provide more details?"
 }
@@ -737,13 +832,17 @@ Response (201 Created):
   "message": "Interest marked successfully",
   "data": {
     "_id": "507f1f77bcf86cd799439013",
-    "userId": "507f1f77bcf86cd799439011",
+    "buyerId": "507f1f77bcf86cd799439011",
     "propertyId": "507f1f77bcf86cd799439012",
+    "sellerId": "507f1f77bcf86cd799439014",
     "name": "John Doe",
     "email": "john@example.com",
-    "phone": "9876543210",
+    "mobile": "9876543210",
     "status": "new",
     "createdAt": "2024-01-15T10:30:00Z"
+  },
+  "googleSheets": {
+    "synced": true
   }
 }
 
@@ -779,7 +878,7 @@ Response (200 OK):
 
 #### 3️⃣ **Get All Leads (ADMIN ONLY)**
 ```
-GET /interests/leads?status=new&propertyId=507f1f77bcf86cd799439012&page=1&limit=20
+GET /interests?status=new&propertyId=507f1f77bcf86cd799439012&page=1&limit=20
 Headers: Authorization: Bearer <token>
 
 Response (200 OK):
@@ -808,24 +907,23 @@ Response (200 OK):
 
 #### 4️⃣ **Update Lead Status (ADMIN ONLY)**
 ```
-PUT /interests/:interestId
+PATCH /interests/:leadId/status
 Headers: Authorization: Bearer <token>
 Content-Type: application/json
 
 Request Body:
 {
   "status": "contacted",
-  "notes": "Called the buyer, interested in scheduling visit"
+  "assignedToAdmin": "507f1f77bcf86cd799439099"
 }
 
 Response (200 OK):
 {
   "success": true,
-  "message": "Lead updated successfully",
+  "message": "Lead status updated successfully",
   "data": {
     "_id": "507f1f77bcf86cd799439013",
-    "status": "contacted",
-    "notes": "Called the buyer..."
+    "status": "contacted"
   }
 }
 ```

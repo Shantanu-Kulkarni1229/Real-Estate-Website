@@ -67,6 +67,45 @@ npm run seed-test-users
 
 ---
 
+## 🧭 Frontend Integration Quick Map
+
+Base API URL:
+```text
+http://localhost:5000/api/v1
+```
+
+Protected route header:
+```text
+Authorization: Bearer <token>
+```
+
+Auth:
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/verify`
+
+Property (seller side):
+- `POST /properties` (seller/admin)
+- `PUT /properties/:propertyId` (owner seller/admin)
+- `DELETE /properties/:propertyId` (owner seller/admin)
+
+Property (public/buyer side):
+- `GET /properties`
+- `GET /properties/:propertyId`
+
+Lead/Interest:
+- `POST /interests` (buyer/renter)
+- `GET /interests/my-interests` (buyer/renter)
+- `GET /interests` (admin)
+- `PATCH /interests/:leadId/status` (admin)
+
+Lead statuses:
+- `new`
+- `contacted`
+- `closed`
+
+---
+
 ## 🧪 Quick Testing
 
 ### Test Server Health:
@@ -152,6 +191,9 @@ npm uninstall package-name
 
 **Issue**: JWT Secret error
 - **Solution**: Check .env file has JWT_SECRET with sufficient length
+
+**Issue**: Lead created but not visible in Google Sheets
+- **Solution**: Verify the sheet is shared as Editor with the service account in `GOOGLE_SERVICE_ACCOUNT_JSON`
 
 ---
 

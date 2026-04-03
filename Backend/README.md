@@ -139,10 +139,16 @@ http://localhost:5000/api/v1
 | `/users/:userId` | GET | Get user profile | ✅ |
 | `/properties` | GET | Browse all properties | ❌ |
 | `/properties` | POST | Create property (Seller) | ✅ |
+| `/properties/:propertyId` | GET | Get one property detail | ❌ |
+| `/properties/:propertyId` | PUT | Update own property (Seller/Admin) | ✅ |
+| `/properties/:propertyId` | DELETE | Delete own property (Seller/Admin) | ✅ |
 | `/interests` | POST | Mark interest | ✅ |
 | `/interests/my-interests` | GET | Get own interests | ✅ |
-| `/admin/dashboard` | GET | Admin dashboard | ✅ Admin |
-| `/admin/leads` | GET | Get all leads | ✅ Admin |
+| `/interests` | GET | Get all leads | ✅ Admin |
+| `/interests/:leadId/status` | PATCH | Update lead status (new/contacted/closed) | ✅ Admin |
+| `/admin/properties` | GET | Get properties for admin review | ✅ Admin |
+| `/admin/properties/:propertyId/review` | PATCH | Approve/Reject property | ✅ Admin |
+| `/admin/dashboard` | GET | Dashboard analytics (users/properties/leads/conversion) | ✅ Admin |
 | `/google-sheets/initialize` | POST | Create required sheets & headers | ✅ Internal |
 | `/google-sheets/sync-lead` | POST | Add buyer/seller/link rows | ✅ Internal |
 | `/uploads/property-images` | POST | Upload seller property images to Cloudinary | ✅ |
@@ -250,6 +256,82 @@ curl -X POST http://localhost:5000/api/v1/auth/login \
   }'
 ```
 
+### Frontend Integration Snapshot
+
+Property list filters supported on `GET /api/v1/properties`:
+- `city`
+- `state`
+- `propertyType`
+- `listingType`
+- `minPrice`
+- `maxPrice`
+- `bhk`
+- `furnishing`
+- `status`
+- `verified`
+- `search`
+- `page`
+- `limit`
+- `sortBy` (`createdAt`, `price`, `viewsCount`)
+- `sortOrder` (`asc`, `desc`)
+
+Create property (`POST /api/v1/properties`, seller/admin):
+```json
+{
+  "title": "2BHK Apartment in Dwarka",
+  "description": "Near metro and market",
+  "propertyType": "apartment",
+  "listingType": "sell",
+  "price": 5000000,
+  "negotiable": true,
+  "address": "A-12, Sector 10",
+  "city": "Delhi",
+  "state": "Delhi",
+  "pincode": "110075",
+  "locality": "Dwarka",
+  "landmark": "Near Metro Gate 2",
+  "latitude": 28.5921,
+  "longitude": 77.046,
+  "specifications": {
+    "residential": {
+      "bhk": 2,
+      "bathrooms": 2,
+      "balconies": 2,
+      "superBuiltUpArea": 1200,
+      "carpetArea": 950,
+      "furnishing": "semi-furnished",
+      "floorNumber": 4,
+      "totalFloors": 12,
+      "propertyAge": 4,
+      "facing": "north",
+      "parking": { "available": true, "type": "covered" }
+    }
+  },
+  "amenities": ["Gym", "Lift", "Security"],
+  "images": ["https://.../image1.jpg"],
+  "videos": [],
+  "virtualTourUrl": "https://example.com/tour/prop123",
+  "ownerName": "Anita Verma",
+  "contactNumber": "8888888888",
+  "ownershipType": "freehold",
+  "availableFrom": "2026-05-01T00:00:00.000Z"
+}
+```
+
+Create lead (`POST /api/v1/interests`, buyer/renter):
+```json
+{
+  "name": "Rahul Sharma",
+  "mobileNumber": "9999999999",
+  "email": "rahul@example.com",
+  "whatsappNumber": "9999999999",
+  "message": "I want a site visit this weekend",
+  "propertyId": "680000000000000000000001"
+}
+```
+
+Lead create response includes Google Sheets sync metadata in `googleSheets`.
+
 ---
 
 ## 📊 Database Schema
@@ -315,15 +397,15 @@ npm uninstall package-name
 
 ### Phase 2: Models & Controllers
 - [ ] Implement User model & controller
-- [ ] Implement Property model & controller
-- [ ] Implement Interest model & controller
+- [x] Implement Property model & controller
+- [x] Implement Interest model & controller
 - [ ] Implement Admin model & controller
 
 ### Phase 3: Routes & APIs
-- [ ] Authentication routes
-- [ ] User routes
-- [ ] Property routes
-- [ ] Interest routes
+- [x] Authentication routes
+- [x] User routes
+- [x] Property routes
+- [x] Interest routes
 - [ ] Admin routes
 
 ### Phase 4: Testing
@@ -360,6 +442,6 @@ Real Estate Platform Development Team
 
 ---
 
-**Last Updated**: April 2, 2026  
-**Status**: 🚀 Project Setup Complete - Ready for Development
+**Last Updated**: April 3, 2026  
+**Status**: 🚀 Auth + Users + Properties + Interests + Google Sheets Sync Active
 
