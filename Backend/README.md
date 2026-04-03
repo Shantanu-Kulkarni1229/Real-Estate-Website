@@ -202,6 +202,26 @@ Note: Cloudinary is used for seller property image uploads. The backend accepts 
 npm test
 ```
 
+### Create Admin (Script-Only)
+```bash
+npm run create-admin -- --email admin@yourdomain.com --password YourStrongPassword123
+# or
+node scripts/create-admin.js --email admin@yourdomain.com --password YourStrongPassword123
+```
+
+Admin users are blocked from `/api/v1/auth/register` and must be created only using this script.
+
+### Seed Test Users (Buyer, Seller, Renter, Admin)
+```bash
+npm run seed-test-users
+```
+
+Seeded accounts:
+- `buyer.test@example.com` / `Buyer@123`
+- `seller.test@example.com` / `Seller@123`
+- `renter.test@example.com` / `Renter@123`
+- `admin.test@example.com` / `Admin@123`
+
 ### Run Specific Test Suite
 ```bash
 npm test -- tests/auth.test.js

@@ -19,6 +19,8 @@
  */
 
 const authorize = (...allowedRoles) => {
+  const normalizedRoles = allowedRoles.flat();
+
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -29,11 +31,11 @@ const authorize = (...allowedRoles) => {
 
     const userRole = req.user.role;
 
-    if (!allowedRoles.includes(userRole)) {
+    if (!normalizedRoles.includes(userRole)) {
       console.warn(`✗ Unauthorized access attempt: ${req.user.userId} (${userRole}) tried to access admin resource`);
       return res.status(403).json({
         success: false,
-        message: `Access denied. Required role(s): ${allowedRoles.join(', ')}`,
+        message: `Access denied. Required role(s): ${normalizedRoles.join(', ')}`,
         userRole: userRole
       });
     }

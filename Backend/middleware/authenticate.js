@@ -16,13 +16,21 @@ const jwt = require('jsonwebtoken');
 
 const authenticate = (req, res, next) => {
   try {
-    // Get token from header
-    const token = req.headers.authorization?.split(' ')[1];
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message: 'JWT_SECRET is not configured'
+      });
+    }
 
-    if (!token) {
+    // Get token from Authorization header: Bearer <token>
+    const authHeader = req.headers.authorization || '';
+    const [scheme, token] = authHeader.split(' ');
+
+    if (scheme !== 'Bearer' || !token) {
       return res.status(401).json({
         success: false,
-        message: 'No token provided. Authorization required'
+        message: 'Authorization header must be in format: Bearer <token>'
       });
     }
 

@@ -39,6 +39,20 @@ npm run dev
 
 Your server should now be running on **http://localhost:5000**
 
+### Step 6: Create First Admin (Mandatory Script)
+```bash
+npm run create-admin -- --email admin@yourdomain.com --password YourStrongPassword123
+# or
+node scripts/create-admin.js --email admin@yourdomain.com --password YourStrongPassword123
+```
+
+Important: Admin creation is intentionally blocked from public registration API.
+
+### Step 7: Seed Test Users (Buyer, Seller, Renter, Admin)
+```bash
+npm run seed-test-users
+```
+
 ---
 
 ## 📚 Documentation Structure

@@ -42,7 +42,35 @@ cp .env.example .env
 npm run dev
 
 # 6. Server will run on http://localhost:5000
+
+# 7. Create first admin (script only)
+npm run create-admin -- --email admin@yourdomain.com --password YourStrongPassword123
+# or
+node scripts/create-admin.js --email admin@yourdomain.com --password YourStrongPassword123
+
+# 8. Seed test users (buyer, seller, renter, admin)
+npm run seed-test-users
 ```
+
+### Admin Creation Policy
+
+- Admin cannot be created through `POST /api/v1/auth/register`.
+- Admin must be created only through script:
+
+```bash
+npm run create-admin -- --email admin@yourdomain.com --password YourStrongPassword123
+# or
+node scripts/create-admin.js --email admin@yourdomain.com --password YourStrongPassword123
+```
+
+Use this same script for adding any new admin in future.
+
+### Test Seed Accounts
+
+- buyer: `buyer.test@example.com` / `Buyer@123`
+- seller: `seller.test@example.com` / `Seller@123`
+- renter: `renter.test@example.com` / `Renter@123`
+- admin: `admin.test@example.com` / `Admin@123`
 
 ---
 
