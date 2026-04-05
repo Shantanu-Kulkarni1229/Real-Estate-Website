@@ -8,7 +8,9 @@ const {
   getUsers,
   updateUserStatus,
   verifySeller,
-  assignLead
+  assignLead,
+  sendLeadEmail,
+  deleteLead
 } = require('../controllers/admin.controller');
 
 const router = express.Router();
@@ -26,5 +28,7 @@ router.get('/properties', getPropertiesForReview);
 router.patch('/properties/:propertyId/review', reviewProperty);
 
 router.patch('/leads/:leadId/assign', assignLead);
+router.post('/leads/:leadId/send-email', sendLeadEmail);
+router.delete('/leads/:leadId', deleteLead);
 
 module.exports = router;

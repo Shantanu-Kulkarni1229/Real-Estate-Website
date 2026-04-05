@@ -10,6 +10,19 @@ function parsePositiveNumber(value) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function normalizeCityName(value) {
+  if (!value) {
+    return value;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  const cityAliases = {
+    aurangabad: 'Chhatrapati Sambhajinagar'
+  };
+
+  return cityAliases[normalized] || String(value).trim();
+}
+
 function isOwner(requestUser, propertyDoc) {
   if (!requestUser || !propertyDoc) {
     return false;
@@ -98,7 +111,7 @@ function getUpdatePayload(body, isAdmin) {
 function buildFilters(query) {
   const filters = {};
 
-  if (query.city) filters.city = query.city;
+  if (query.city) filters.city = normalizeCityName(query.city);
   if (query.state) filters.state = query.state;
   if (query.propertyType) filters.propertyType = query.propertyType;
   if (query.listingType) filters.listingType = query.listingType;

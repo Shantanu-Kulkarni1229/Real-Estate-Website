@@ -85,7 +85,26 @@ const propertySchema = new mongoose.Schema(
     },
     propertyType: {
       type: String,
-      enum: ['apartment', 'villa', 'plot', 'commercial'],
+      enum: [
+        'Residential',
+        'Flat',
+        'House/Villa',
+        'Plot',
+        'Commercial',
+        'Office Space',
+        'Shop/Showroom',
+        'Commercial Land',
+        'Warehouse/Godown',
+        'Industrial Building',
+        'Industrial Shed',
+        'Agricultural Land',
+        'Farm House',
+        // Keep legacy values so existing records remain valid
+        'apartment',
+        'villa',
+        'plot',
+        'commercial'
+      ],
       required: [true, 'Property type is required']
     },
     listingType: {
@@ -189,6 +208,10 @@ const propertySchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending',
       index: true
+    },
+    reviewNotes: {
+      type: String,
+      maxlength: [1000, 'Review notes cannot exceed 1000 characters']
     },
     verified: {
       type: Boolean,

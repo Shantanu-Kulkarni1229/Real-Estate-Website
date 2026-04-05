@@ -1,13 +1,16 @@
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
-import RecommendedProperties from './components/RecommendedProperties'
+import ApprovedPropertiesSection from './components/sections/ApprovedPropertiesSection'
+import { useState } from 'react'
 
 const HomePage = () => {
+  const [searchFilters, setSearchFilters] = useState({})
+
   return (
     <div className="min-h-screen bg-(--color-surface)">
       <Navbar />
-      <Hero />
-      <RecommendedProperties />
+      <Hero onSearch={setSearchFilters} />
+      <ApprovedPropertiesSection filters={searchFilters} />
     </div>
   )
 }

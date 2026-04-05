@@ -130,14 +130,33 @@ function buildLeadNotificationTemplate({ buyerName, propertyTitle, city, status 
   };
 }
 
-function buildPropertyReviewTemplate({ sellerName, propertyTitle, status }) {
+function buildPropertyReviewTemplate({ sellerName, propertyTitle, status, reviewMessage }) {
   const safeSellerName = sellerName || 'Seller';
   const safeTitle = propertyTitle || 'Property';
   const safeStatus = status || 'updated';
+  const safeMessage = (reviewMessage || '').trim();
+
+  if (safeStatus === 'approved') {
+    return {
+      subject: `Property approved: ${safeTitle}`,
+      text: `Hi ${safeSellerName}, your property "${safeTitle}" has been approved and verified. Our team will connect with you shortly with qualified buyers and next steps.`
+    };
+  }
+
+  if (safeStatus === 'rejected') {
+    const reasonText = safeMessage
+      ? ` Reason: ${safeMessage}`
+      : '';
+
+    return {
+      subject: `Property rejected: ${safeTitle}`,
+      text: `Hi ${safeSellerName}, your property "${safeTitle}" was rejected during review.${reasonText} Please update the listing and resubmit.`
+    };
+  }
 
   return {
     subject: `Property ${safeStatus}: ${safeTitle}`,
-    text: `Hi ${safeSellerName}, your property "${safeTitle}" is now ${safeStatus}.`
+    text: `Hi ${safeSellerName}, your property "${safeTitle}" is now ${safeStatus}.${safeMessage ? ` Note: ${safeMessage}` : ''}`
   };
 }
 

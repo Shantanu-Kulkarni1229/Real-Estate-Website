@@ -4,6 +4,7 @@ const Property = require('../models/Property.model');
 const Interest = require('../models/Interest.model');
 const {
   sendEmailNotification,
+  sendBulkEmailNotifications,
   buildPropertyReviewTemplate
 } = require('../utils/notification.utils');
 
@@ -78,7 +79,7 @@ async function getPropertiesForReview(req, res) {
 
 async function reviewProperty(req, res) {
   const { propertyId } = req.params;
-  const { status } = req.body || {};
+  const { status, reviewMessage } = req.body || {};
 
   if (!mongoose.Types.ObjectId.isValid(propertyId)) {
     return res.status(400).json({
@@ -94,11 +95,27 @@ async function reviewProperty(req, res) {
     });
   }
 
+  const normalizedReviewMessage = typeof reviewMessage === 'string'
+    ? reviewMessage.trim()
+    : '';
+
+  if (status === 'rejected' && !normalizedReviewMessage) {
+    return res.status(400).json({
+      success: false,
+      message: 'reviewMessage is required when rejecting a property'
+    });
+  }
+
   try {
     const updates = {
       status,
-      verified: status === 'approved'
+      verified: status === 'approved',
+      reviewNotes: normalizedReviewMessage || undefined
     };
+
+    if (status === 'approved' && !normalizedReviewMessage) {
+      updates.reviewNotes = 'Property approved and verified by admin';
+    }
 
     const property = await Property.findByIdAndUpdate(
       propertyId,
@@ -120,7 +137,8 @@ async function reviewProperty(req, res) {
         const template = buildPropertyReviewTemplate({
           sellerName,
           propertyTitle: property.title,
-          status
+          status,
+          reviewMessage: property.reviewNotes
         });
 
         await sendEmailNotification({
@@ -336,6 +354,120 @@ async function assignLead(req, res) {
   }
 }
 
+async function sendLeadEmail(req, res) {
+  const { leadId } = req.params;
+  const { target = 'both', subject, message } = req.body || {};
+
+  if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid lead ID'
+    });
+  }
+
+  if (!['buyer', 'seller', 'both'].includes(target)) {
+    return res.status(400).json({
+      success: false,
+      message: 'target must be one of: buyer, seller, both'
+    });
+  }
+
+  try {
+    const lead = await Interest.findById(leadId)
+      .populate('buyerId', 'firstName lastName email')
+      .populate('sellerId', 'firstName lastName email')
+      .populate('propertyId', 'title city');
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    const propertyTitle = lead?.propertyId?.title || 'Property';
+    const propertyCity = lead?.propertyId?.city || 'N/A';
+    const buyerName = `${lead?.buyerId?.firstName || ''} ${lead?.buyerId?.lastName || ''}`.trim() || lead.name || 'Buyer';
+    const sellerName = `${lead?.sellerId?.firstName || ''} ${lead?.sellerId?.lastName || ''}`.trim() || 'Seller';
+
+    const buyerEmail = lead?.buyerId?.email || lead.email;
+    const sellerEmail = lead?.sellerId?.email;
+
+    const notifications = [];
+
+    if ((target === 'buyer' || target === 'both') && buyerEmail) {
+      notifications.push({
+        to: buyerEmail,
+        subject: subject || `Update on your interest for ${propertyTitle}`,
+        text: message || `Hi ${buyerName}, this is an update from CityPloter regarding your interest in "${propertyTitle}" (${propertyCity}). Our team is coordinating the next steps and will reach out shortly.`
+      });
+    }
+
+    if ((target === 'seller' || target === 'both') && sellerEmail) {
+      notifications.push({
+        to: sellerEmail,
+        subject: subject || `Lead update for ${propertyTitle}`,
+        text: message || `Hi ${sellerName}, this is an update from CityPloter for your listing "${propertyTitle}" (${propertyCity}). A buyer lead is currently in progress and our team is handling the coordination.`
+      });
+    }
+
+    if (notifications.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid recipient email found for the selected target'
+      });
+    }
+
+    const results = await sendBulkEmailNotifications(notifications);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lead email notifications processed',
+      data: {
+        leadId,
+        target,
+        results
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send lead email'
+    });
+  }
+}
+
+async function deleteLead(req, res) {
+  const { leadId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid lead ID'
+    });
+  }
+
+  try {
+    const deleted = await Interest.findByIdAndDelete(leadId);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lead deleted successfully'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete lead'
+    });
+  }
+}
+
 async function getDashboardStats(req, res) {
   try {
     const [
@@ -396,5 +528,7 @@ module.exports = {
   getUsers,
   updateUserStatus,
   verifySeller,
-  assignLead
+  assignLead,
+  sendLeadEmail,
+  deleteLead
 };

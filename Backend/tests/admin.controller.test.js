@@ -139,6 +139,24 @@ describe('admin.controller', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
+  test('reviewProperty should require reviewMessage when rejecting', async () => {
+    const req = {
+      params: { propertyId: '507f1f77bcf86cd799439011' },
+      body: { status: 'rejected' }
+    };
+    const res = createRes();
+
+    await reviewProperty(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        message: 'reviewMessage is required when rejecting a property'
+      })
+    );
+  });
+
   test('getUsers should return paginated users', async () => {
     const req = { query: { role: 'seller', page: '1', limit: '5' } };
     const res = createRes();

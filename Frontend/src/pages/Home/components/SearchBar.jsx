@@ -1,40 +1,47 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CITY_OPTIONS } from '../../../constants/cities'
+import { PROPERTY_TYPE_GROUPS } from '../../../constants/propertyTypes'
+import { useAuth } from '../../../context/AuthContext'
+import { apiRequest } from '../../../lib/api'
+
+const GEOLOCATION_OPTIONS = {
+  enableHighAccuracy: true,
+  timeout: 15000,
+  maximumAge: 0,
+}
+
+const CITY_ALIASES = {
+  aurangabad: 'Chhatrapati Sambhajinagar',
+  'chhatrapati sambhaji nagar': 'Chhatrapati Sambhajinagar',
+  'chhatrapati sambhajinagr': 'Chhatrapati Sambhajinagar',
+}
+
+function normalizeCityKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function canonicalizeCityName(rawCity) {
+  if (!rawCity) {
+    return ''
+  }
+
+  const normalizedKey = normalizeCityKey(rawCity)
+  if (CITY_ALIASES[normalizedKey]) {
+    return CITY_ALIASES[normalizedKey]
+  }
+
+  const exactMatch = CITY_OPTIONS.find((city) => normalizeCityKey(city) === normalizedKey)
+  return exactMatch || String(rawCity).trim()
+}
 
 const topTabs = ['Buy', 'Rent']
 
-const majorCities = [
-  'All India',
-  'Mumbai',
-  'Delhi NCR',
-  'Bengaluru',
-  'Pune',
-  'Hyderabad',
-  'Chennai',
-  'Kolkata',
-  'Ahmedabad',
-  'Jaipur',
-  'Lucknow',
-  'Chandigarh',
-  'Indore',
-  'Surat',
-  'Noida',
-  'Navi Mumbai',
-]
-
-const propertyGroups = [
-  {
-    title: 'Residential',
-    options: ['Flat', 'House/Villa', 'Plot'],
-  },
-  {
-    title: 'Commercial',
-    options: ['Office Space', 'Shop/Showroom', 'Commercial Land', 'Warehouse/Godown', 'Industrial Building', 'Industrial Shed'],
-  },
-  {
-    title: 'Other Property Types',
-    options: ['Agricultural Land', 'Farm House'],
-  },
-]
+const propertyGroups = PROPERTY_TYPE_GROUPS
 
 const budgetOptions = [
   '₹5 Lac',
@@ -74,7 +81,25 @@ const getDetectedCity = async (latitude, longitude) => {
   }
 
   const data = await response.json()
-  return data.city || data.locality || data.principalSubdivision || 'All India'
+  const administrativeNames = Array.isArray(data?.localityInfo?.administrative)
+    ? data.localityInfo.administrative.map((item) => item?.name).filter(Boolean)
+    : []
+
+  const candidates = [
+    data?.city,
+    data?.locality,
+    ...administrativeNames,
+    data?.principalSubdivision,
+  ].filter(Boolean)
+
+  for (const candidate of candidates) {
+    const canonical = canonicalizeCityName(candidate)
+    if (CITY_OPTIONS.includes(canonical)) {
+      return canonical
+    }
+  }
+
+  return canonicalizeCityName(candidates[0] || 'All India') || 'All India'
 }
 
 const DropdownPanel = ({ title, children, className = '' }) => (
@@ -113,7 +138,9 @@ const FilterTrigger = ({ label, value, onClick, isOpen, icon }) => (
   </button>
 )
 
-const SearchBar = () => {
+const SearchBar = ({ onSearch }) => {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const geolocationSupported = typeof navigator !== 'undefined' && 'geolocation' in navigator
   const [activeTab, setActiveTab] = useState('Buy')
   const [selectedCity, setSelectedCity] = useState('All India')
@@ -140,17 +167,17 @@ const SearchBar = () => {
       () => {
         // User can still search manually
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+      GEOLOCATION_OPTIONS,
     )
   }, [geolocationSupported])
 
   const filteredCities = useMemo(() => {
     const query = citySearch.trim().toLowerCase()
     if (!query) {
-      return majorCities
+      return CITY_OPTIONS
     }
 
-    return majorCities.filter((city) => city.toLowerCase().includes(query))
+    return CITY_OPTIONS.filter((city) => city.toLowerCase().includes(query))
   }, [citySearch])
 
   const propertyOptions = useMemo(() => {
@@ -176,7 +203,7 @@ const SearchBar = () => {
       () => {
         setOpenMenu(null)
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+      GEOLOCATION_OPTIONS,
     )
   }
 
@@ -337,6 +364,43 @@ const SearchBar = () => {
     </DropdownPanel>
   )
 
+  const handleSearch = async () => {
+    const payload = {
+      searchType: activeTab.toLowerCase(),
+      city: selectedCity,
+      propertyType: selectedProperty,
+      budgetMin: minBudget,
+      budgetMax: maxBudget,
+      queryText: `${activeTab} ${selectedProperty} in ${selectedCity}`,
+      sourcePage: 'home-search'
+    }
+
+    onSearch?.(payload)
+
+    const searchParams = new URLSearchParams({
+      searchType: payload.searchType,
+      city: payload.city,
+      propertyType: payload.propertyType,
+      budgetMin: payload.budgetMin,
+      budgetMax: payload.budgetMax,
+      q: payload.queryText
+    })
+
+    navigate(`/search?${searchParams.toString()}`)
+
+    try {
+      await apiRequest('/search-activities', {
+        method: 'POST',
+        body: {
+          ...payload,
+          userId: user?._id || user?.userId
+        }
+      })
+    } catch {
+      // Search logging is best-effort.
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl overflow-visible rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:p-5 lg:p-6">
       <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-inner">
@@ -399,7 +463,11 @@ const SearchBar = () => {
           {openMenu === 'budget' ? renderBudgetMenu() : null}
         </div>
 
-        <button className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-(--color-primary) px-6 py-4 text-sm font-semibold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 hover:brightness-95 hover:shadow-xl">
+        <button
+          type="button"
+          onClick={handleSearch}
+          className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-(--color-primary) px-6 py-4 text-sm font-semibold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 hover:brightness-95 hover:shadow-xl"
+        >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a6 6 0 11-12 0 6 6 0 0112 0z" />
           </svg>
