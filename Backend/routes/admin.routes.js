@@ -10,7 +10,9 @@ const {
   verifySeller,
   assignLead,
   sendLeadEmail,
-  deleteLead
+  deleteLead,
+  getSubscriptionFees,
+  updateSubscriptionFees
 } = require('../controllers/admin.controller');
 
 const router = express.Router();
@@ -30,5 +32,8 @@ router.patch('/properties/:propertyId/review', reviewProperty);
 router.patch('/leads/:leadId/assign', assignLead);
 router.post('/leads/:leadId/send-email', sendLeadEmail);
 router.delete('/leads/:leadId', deleteLead);
+
+router.get('/subscription-fees', getSubscriptionFees);
+router.put('/subscription-fees', updateSubscriptionFees);
 
 module.exports = router;

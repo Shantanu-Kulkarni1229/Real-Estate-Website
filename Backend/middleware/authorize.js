@@ -18,8 +18,17 @@
  * app.post('/route', authenticate, authorize(['seller', 'buyer']), controllerFunction)
  */
 
+const ROLE_ALIASES = {
+  seller: 'owner'
+};
+
+function normalizeRole(role) {
+  const rawRole = String(role || '').trim().toLowerCase();
+  return ROLE_ALIASES[rawRole] || rawRole;
+}
+
 const authorize = (...allowedRoles) => {
-  const normalizedRoles = allowedRoles.flat();
+  const normalizedRoles = allowedRoles.flat().map(normalizeRole);
 
   return (req, res, next) => {
     if (!req.user) {
@@ -29,7 +38,7 @@ const authorize = (...allowedRoles) => {
       });
     }
 
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
 
     if (!normalizedRoles.includes(userRole)) {
       console.warn(`✗ Unauthorized access attempt: ${req.user.userId} (${userRole}) tried to access admin resource`);

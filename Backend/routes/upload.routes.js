@@ -10,7 +10,7 @@ const {
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize('seller', 'admin'));
+router.use(authorize('owner', 'agent', 'builder', 'admin', 'seller'));
 
 router.post('/property-images', uploadPropertyImageMiddleware.array('images', 10), (req, res) => {
   const uploadError = handleMulterError(req.fileValidationError, res);

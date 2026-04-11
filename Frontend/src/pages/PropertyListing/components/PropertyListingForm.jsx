@@ -9,7 +9,7 @@ import MediaSection from './sections/MediaSection'
 import OwnershipSection from './sections/OwnershipSection'
 import SpecificationSection from './sections/SpecificationSection'
 import SubmissionPanel from './sections/SubmissionPanel'
-import { getInitialForm } from '../propertyListing.constants'
+import { createEmptyUnitConfiguration, getInitialForm } from '../propertyListing.constants'
 import { getPropertySpecCategory } from '../../../constants/propertyTypes'
 
 function normalizeTextList(text) {
@@ -80,12 +80,26 @@ function buildSpecifications(form) {
 }
 
 function buildPayload(form, uploadedImages) {
+  const unitConfigurations = (Array.isArray(form.unitConfigurations) ? form.unitConfigurations : [])
+    .map((unit) => ({
+      unitLabel: String(unit?.unitLabel || '').trim(),
+      bhk: cleanNumber(unit?.bhk),
+      sizeSqFt: cleanNumber(unit?.sizeSqFt),
+      price: cleanNumber(unit?.price)
+    }))
+    .filter((unit) => unit.price !== undefined)
+
+  const derivedPrice = unitConfigurations.length > 0
+    ? Math.min(...unitConfigurations.map((unit) => Number(unit.price)))
+    : Number(form.price)
+
   return {
     title: form.title.trim(),
     description: form.description.trim(),
     propertyType: form.propertyType,
     listingType: form.listingType,
-    price: Number(form.price),
+    price: derivedPrice,
+    unitConfigurations,
     negotiable: form.negotiable,
     address: form.address.trim(),
     city: form.city.trim(),
@@ -112,7 +126,21 @@ function validateForm(form, imageFiles) {
 
   if (!form.title.trim()) missing.push('title')
   if (!form.description.trim()) missing.push('description')
-  if (!form.price) missing.push('price')
+  if (form.hasMultipleUnits) {
+    const validUnits = (Array.isArray(form.unitConfigurations) ? form.unitConfigurations : [])
+      .map((unit) => ({
+        unitLabel: String(unit?.unitLabel || '').trim(),
+        sizeSqFt: cleanNumber(unit?.sizeSqFt),
+        price: cleanNumber(unit?.price)
+      }))
+      .filter((unit) => unit.price !== undefined)
+
+    if (validUnits.length === 0) {
+      missing.push('at least one unit price')
+    }
+  } else if (!form.price) {
+    missing.push('price')
+  }
   if (!form.address.trim()) missing.push('address')
   if (!form.city.trim()) missing.push('city')
   if (!form.state.trim()) missing.push('state')
@@ -193,6 +221,48 @@ const PropertyListingForm = () => {
         }
       }
     }))
+  }
+
+  const handleUnitConfigurationChange = (index, field, value) => {
+    setForm((current) => {
+      const currentUnits = Array.isArray(current.unitConfigurations)
+        ? current.unitConfigurations
+        : []
+
+      const nextUnits = currentUnits.map((unit, unitIndex) => (
+        unitIndex === index
+          ? { ...unit, [field]: value }
+          : unit
+      ))
+
+      return {
+        ...current,
+        unitConfigurations: nextUnits
+      }
+    })
+  }
+
+  const addUnitConfiguration = () => {
+    setForm((current) => ({
+      ...current,
+      hasMultipleUnits: true,
+      unitConfigurations: [
+        ...(Array.isArray(current.unitConfigurations) ? current.unitConfigurations : []),
+        createEmptyUnitConfiguration(),
+      ]
+    }))
+  }
+
+  const removeUnitConfiguration = (index) => {
+    setForm((current) => {
+      const nextUnits = (Array.isArray(current.unitConfigurations) ? current.unitConfigurations : [])
+        .filter((_, unitIndex) => unitIndex !== index)
+
+      return {
+        ...current,
+        unitConfigurations: nextUnits.length > 0 ? nextUnits : [createEmptyUnitConfiguration()]
+      }
+    })
   }
 
   const handleImagesChange = (files) => {
@@ -341,7 +411,13 @@ const PropertyListingForm = () => {
               </div>
             ) : null}
 
-            <BasicDetailsSection form={form} onChange={handleChange} />
+            <BasicDetailsSection
+              form={form}
+              onChange={handleChange}
+              onUnitChange={handleUnitConfigurationChange}
+              onUnitAdd={addUnitConfiguration}
+              onUnitRemove={removeUnitConfiguration}
+            />
             <LocationSection form={form} onChange={handleChange} />
             <AmenitiesSection form={form} onChange={handleChange} />
             <SpecificationSection form={form} onNestedChange={handleNestedChange} />

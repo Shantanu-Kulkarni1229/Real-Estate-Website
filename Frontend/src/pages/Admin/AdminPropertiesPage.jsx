@@ -1,24 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { apiRequest } from '../../lib/api'
 import LoadingScreen from '../../components/LoadingScreen'
-import AdminStatsCards from './components/AdminStatsCards'
+import AdminAnalyticsOverview from './components/AdminAnalyticsOverview'
 import PendingPropertyCard from './components/PendingPropertyCard'
 import PropertyDetailsModal from './components/PropertyDetailsModal'
+import LeadPipelineContent from './components/LeadPipelineContent'
 
 const statusOptions = ['pending', 'approved', 'rejected']
 const tabOptions = [
   { id: 'overview', label: 'Overview', description: 'Live admin summary' },
   { id: 'properties', label: 'Properties', description: 'Review and moderation' },
   { id: 'leads', label: 'Lead Pipeline', description: 'Booking and lead flow' },
-  { id: 'users', label: 'People CRM', description: 'Buyers, sellers, admins' },
+  { id: 'users', label: 'People CRM', description: 'Buyers, owners, agents, builders, admins' },
   { id: 'searches', label: 'Search Intelligence', description: 'Buyer demand signals' },
   { id: 'reports', label: 'Reports', description: 'Generate analytics exports' }
 ]
 const leadStatusOptions = ['all', 'new', 'contacted', 'closed']
 const searchTypeOptions = ['all', 'buy', 'rent']
-const userRoleOptions = ['all', 'buyer', 'seller', 'renter', 'admin']
+const userRoleOptions = ['all', 'owner', 'agent', 'builder', 'seller', 'admin']
+
+function getLeadGroupKey(lead) {
+  if (lead?.buyerId?._id) {
+    return lead.buyerId._id
+  }
+
+  const publicKey = [lead?.mobile, lead?.email, lead?.name].find(Boolean)
+  return `public-${publicKey || lead?._id || 'unknown'}`
+}
 
 function downloadReportFile(content, fileName, mimeType) {
   const blob = new Blob([content], { type: mimeType })
@@ -45,18 +55,6 @@ function getFullName(person, fallback = 'Unknown') {
   return fullName || person.name || fallback
 }
 
-function formatCurrency(value) {
-  if (value === undefined || value === null || value === '') {
-    return 'Not shared'
-  }
-
-  if (typeof value === 'number') {
-    return `INR ${Number(value).toLocaleString('en-IN')}`
-  }
-
-  return value
-}
-
 function formatSearchBudget(minBudget, maxBudget) {
   if (!minBudget && !maxBudget) {
     return 'Budget not shared'
@@ -71,6 +69,7 @@ function formatSearchBudget(minBudget, maxBudget) {
 
 const AdminPropertiesPage = () => {
   const { token, user } = useAuth()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
   const [statusFilter, setStatusFilter] = useState('pending')
   const [properties, setProperties] = useState([])
@@ -91,9 +90,14 @@ const AdminPropertiesPage = () => {
   const [userRoleFilter, setUserRoleFilter] = useState('all')
   const [isLoading, setIsLoading] = useState(true)
   const [actionPropertyId, setActionPropertyId] = useState(null)
-  const [actionLeadId, setActionLeadId] = useState(null)
+  const [actionPropertyType, setActionPropertyType] = useState('')
+  const [_actionLeadId, setActionLeadId] = useState(null)
   const [actionUserId, setActionUserId] = useState(null)
   const [reportMessage, setReportMessage] = useState('')
+  const [subscriptionFees, setSubscriptionFees] = useState({ owner: 0, agent: 0, builder: 0 })
+  const [isLoadingSubscriptionFees, setIsLoadingSubscriptionFees] = useState(false)
+  const [isSavingSubscriptionFees, setIsSavingSubscriptionFees] = useState(false)
+  const [subscriptionMessage, setSubscriptionMessage] = useState('')
   const [error, setError] = useState('')
   const [selectedProperty, setSelectedProperty] = useState(null)
 
@@ -221,9 +225,33 @@ const AdminPropertiesPage = () => {
     }
   }, [token, userPage, userRoleFilter])
 
+  const loadSubscriptionFees = useCallback(async () => {
+    if (!token) {
+      return
+    }
+
+    setIsLoadingSubscriptionFees(true)
+    setSubscriptionMessage('')
+
+    try {
+      const response = await apiRequest('/admin/subscription-fees', { token })
+      const nextFees = response?.data?.fees || {}
+      setSubscriptionFees({
+        owner: Number(nextFees.owner || 0),
+        agent: Number(nextFees.agent || 0),
+        builder: Number(nextFees.builder || 0)
+      })
+    } catch (feeError) {
+      setSubscriptionMessage(feeError.message || 'Failed to load subscription fees')
+    } finally {
+      setIsLoadingSubscriptionFees(false)
+    }
+  }, [token])
+
   useEffect(() => {
     loadStats()
-  }, [loadStats])
+    loadSubscriptionFees()
+  }, [loadStats, loadSubscriptionFees])
 
   useEffect(() => {
     if (activeTab === 'overview' || activeTab === 'reports') {
@@ -327,6 +355,7 @@ const AdminPropertiesPage = () => {
     }
 
     setActionPropertyId(propertyId)
+    setActionPropertyType(status)
     setError('')
 
     try {
@@ -369,6 +398,38 @@ const AdminPropertiesPage = () => {
       setError(reviewError.message || 'Failed to review property')
     } finally {
       setActionPropertyId(null)
+      setActionPropertyType('')
+    }
+  }
+
+  const handleDeleteProperty = async (propertyId) => {
+    if (!token) {
+      return
+    }
+
+    const confirmed = window.confirm('Delete this property permanently? This action cannot be undone.')
+    if (!confirmed) {
+      return
+    }
+
+    setActionPropertyId(propertyId)
+    setActionPropertyType('delete')
+    setError('')
+
+    try {
+      await apiRequest(`/properties/${propertyId}`, {
+        method: 'DELETE',
+        token,
+      })
+
+      setProperties((current) => current.filter((item) => item._id !== propertyId))
+      setSelectedProperty((current) => (current && current._id === propertyId ? null : current))
+      loadStats()
+    } catch (deleteError) {
+      setError(deleteError.message || 'Failed to delete property')
+    } finally {
+      setActionPropertyId(null)
+      setActionPropertyType('')
     }
   }
 
@@ -443,44 +504,6 @@ const AdminPropertiesPage = () => {
     }
   }
 
-  const handleSendLeadEmail = async (lead, target) => {
-    if (!token) {
-      return
-    }
-
-    const defaultSubject = `CityPloter lead update for ${lead?.propertyId?.title || 'your listing'}`
-    const defaultMessage = `Hi, this is CityPloter support regarding the lead for ${lead?.propertyId?.title || 'the property'}. Please reply to continue the next step in the lead process.`
-
-    const subject = window.prompt('Email subject', defaultSubject)
-    if (subject === null) {
-      return
-    }
-
-    const message = window.prompt('Email message', defaultMessage)
-    if (message === null) {
-      return
-    }
-
-    setActionLeadId(lead._id)
-    setError('')
-
-    try {
-      await apiRequest(`/admin/leads/${lead._id}/send-email`, {
-        method: 'POST',
-        token,
-        body: {
-          target,
-          subject,
-          message
-        }
-      })
-    } catch (emailError) {
-      setError(emailError.message || 'Failed to send lead email')
-    } finally {
-      setActionLeadId(null)
-    }
-  }
-
   const handleDeleteLead = async (leadId) => {
     if (!token) {
       return
@@ -539,7 +562,7 @@ const AdminPropertiesPage = () => {
   }
 
   const handleVerifySeller = async (targetUser) => {
-    if (!token || targetUser.role !== 'seller') {
+    if (!token || !['seller', 'owner', 'agent', 'builder'].includes(targetUser.role)) {
       return
     }
 
@@ -567,10 +590,61 @@ const AdminPropertiesPage = () => {
     }
   }
 
+  const handleSaveSubscriptionFees = async () => {
+    if (!token) {
+      return
+    }
+
+    setIsSavingSubscriptionFees(true)
+    setSubscriptionMessage('')
+
+    try {
+      const response = await apiRequest('/admin/subscription-fees', {
+        method: 'PUT',
+        token,
+        body: {
+          fees: {
+            owner: Number(subscriptionFees.owner || 0),
+            agent: Number(subscriptionFees.agent || 0),
+            builder: Number(subscriptionFees.builder || 0)
+          }
+        }
+      })
+
+      const savedFees = response?.data?.fees || subscriptionFees
+      setSubscriptionFees({
+        owner: Number(savedFees.owner || 0),
+        agent: Number(savedFees.agent || 0),
+        builder: Number(savedFees.builder || 0)
+      })
+      setSubscriptionMessage('Subscription fees updated successfully.')
+    } catch (feeError) {
+      setSubscriptionMessage(feeError.message || 'Failed to update subscription fees')
+    } finally {
+      setIsSavingSubscriptionFees(false)
+    }
+  }
+
   const renderPropertyTab = () => (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+    <section className="space-y-5">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Property Operations</p>
+            <h2 className="mt-2 text-3xl font-bold text-slate-950">Review, approve, reject, and delete listings</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Manage every listing from one workspace. Pending items can be approved or rejected, approved items can be rejected again or deleted, and rejected items can be revived with approval.
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-right shadow-sm">
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Current Queue</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950">{statusFilter}</p>
+            <p className="text-xs text-slate-500">Page {page} of {Math.max(totalPages, 1)}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-2">
           {statusOptions.map((status) => (
             <button
               key={status}
@@ -579,19 +653,15 @@ const AdminPropertiesPage = () => {
                 setStatusFilter(status)
                 setPage(1)
               }}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold capitalize transition ${
+              className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
                 statusFilter === status
-                  ? 'bg-(--color-primary) text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-(--color-primary) text-white shadow-sm'
+                  : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
               }`}
             >
               {status}
             </button>
           ))}
-        </div>
-
-        <div className="text-sm text-slate-600">
-          Page {page} of {Math.max(totalPages, 1)}
         </div>
       </div>
 
@@ -618,7 +688,10 @@ const AdminPropertiesPage = () => {
                 property={property}
                 onReview={handleReview}
                 onOpenDetails={setSelectedProperty}
+                onDelete={handleDeleteProperty}
+                onViewDetails={() => navigate(`/admin/properties/${property._id}?context=${property.status}`)}
                 loadingAction={actionPropertyId === property._id}
+                loadingActionType={actionPropertyType}
               />
             ))
           )}
@@ -647,14 +720,32 @@ const AdminPropertiesPage = () => {
     </section>
   )
 
+  const handleLeadStatusUpdateWrapper = async (leadId, status) => {
+    setActionLeadId(leadId)
+    try {
+      await handleLeadStatusUpdate(leadId, status)
+    } finally {
+      setActionLeadId(null)
+    }
+  }
+
   const renderLeadTab = () => (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Buyer Leads</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">People who want to get connected</h2>
+    <section className="space-y-5">
+      {/* Header */}
+      <div className="rounded-3xl border border-slate-200 bg-linear-to-r from-white via-slate-50 to-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">📊 Lead Pipeline</p>
+            <h2 className="mt-2 text-3xl font-bold bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+              Your Business Generation Hub
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {leads.length} {leads.length === 1 ? 'callback lead' : 'callback leads'} across {new Set(leads.map((lead) => getLeadGroupKey(lead))).size} {new Set(leads.map((lead) => getLeadGroupKey(lead))).size === 1 ? 'user' : 'users'}
+            </p>
+          </div>
         </div>
 
+        {/* Status Filter Buttons */}
         <div className="flex flex-wrap gap-2">
           {leadStatusOptions.map((status) => (
             <button
@@ -664,183 +755,57 @@ const AdminPropertiesPage = () => {
                 setLeadStatusFilter(status)
                 setLeadPage(1)
               }}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold capitalize transition ${
+              className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
                 leadStatusFilter === status
-                  ? 'bg-(--color-primary) text-white'
+                  ? 'bg-(--color-primary) text-white shadow-md'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              {status}
+              {status === 'all' ? '🌍 All' : status === 'new' ? '✨ New' : status === 'contacted' ? '✔ Contacted' : '✓ Closed'}
             </button>
           ))}
         </div>
       </div>
 
-      {error ? (
-        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
+      {/* Lead Pipeline Content */}
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <LeadPipelineContent
+          leads={leads}
+          isLoading={isLoading}
+          error={error}
+          leadStatusFilter={leadStatusFilter}
+          onStatusUpdate={handleLeadStatusUpdateWrapper}
+          onAssignToMe={handleAssignLeadToMe}
+          onDeleteLead={handleDeleteLead}
+        />
+      </div>
 
-      {isLoading ? (
-        <div className="mt-6">
-          <LoadingScreen label="Loading Leads" sublabel="Fetching buyer and seller lead activity" />
-        </div>
-      ) : leads.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-          No leads found for this filter.
-        </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          {leads.map((lead) => {
-            const buyer = lead.buyerId || {}
-            const seller = lead.sellerId || {}
-            const property = lead.propertyId || {}
-            const assignedAdmin = lead.assignedToAdmin || {}
-            const buyerName = getFullName(buyer, lead.name || 'Buyer')
-            const buyerEmail = buyer.email || lead.email || 'No email shared'
-            const buyerPhone = buyer.phone || lead.mobile || 'No phone shared'
-            const sellerName = getFullName(seller, 'Seller')
-            const assignedTo = getFullName(assignedAdmin, 'Unassigned')
+      {/* Pagination */}
+      {!isLoading && leads.length > 0 && (
+        <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+          <button
+            type="button"
+            disabled={leadPage <= 1 || isLoading}
+            onClick={() => setLeadPage((current) => Math.max(current - 1, 1))}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            ← Previous
+          </button>
 
-            return (
-              <article key={lead._id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Lead Details</p>
-                    <h3 className="mt-2 text-xl font-semibold text-slate-900">{buyerName}</h3>
-                    <p className="mt-1 text-sm text-slate-600">Property: {property.title || 'Property not populated'}</p>
-                  </div>
+          <div className="text-sm font-semibold text-slate-600">
+            Page <span className="text-slate-900">{leadPage}</span> of <span className="text-slate-900">{Math.max(leadTotalPages, 1)}</span>
+          </div>
 
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                    lead.status === 'contacted'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : lead.status === 'closed'
-                        ? 'bg-slate-200 text-slate-700'
-                        : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {lead.status}
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Buyer</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{buyerName}</p>
-                    <p className="text-sm text-slate-600">{buyerEmail}</p>
-                    <p className="text-sm text-slate-600">{buyerPhone}</p>
-                    {lead.whatsapp ? <p className="text-sm text-slate-600">WhatsApp: {lead.whatsapp}</p> : null}
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Property</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{property.title || 'No title'}</p>
-                    <p className="text-sm text-slate-600">{property.city || 'City not shared'}</p>
-                    <p className="text-sm text-slate-600 capitalize">{property.propertyType || 'Property type not shared'} · {property.listingType || 'listing type not shared'}</p>
-                    <p className="text-sm text-slate-600">Price: {formatCurrency(property.price)}</p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Seller / Admin</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">Seller: {sellerName}</p>
-                    <p className="text-sm text-slate-600">Assigned to: {assignedTo}</p>
-                    <p className="text-sm text-slate-600">Lead status: {lead.status}</p>
-                    <p className="text-sm text-slate-600">Created: {lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'N/A'}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Buyer Message</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">{lead.message || 'No message was provided.'}</p>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleLeadStatusUpdate(lead._id, 'contacted')}
-                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Mark contacted
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleLeadStatusUpdate(lead._id, 'closed')}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Close lead
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleAssignLeadToMe(lead._id)}
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Assign to me
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleSendLeadEmail(lead, 'buyer')}
-                    className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Email buyer
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleSendLeadEmail(lead, 'seller')}
-                    className="rounded-xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Email seller
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleSendLeadEmail(lead, 'both')}
-                    className="rounded-xl border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Email both
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLeadId === lead._id}
-                    onClick={() => handleDeleteLead(lead._id)}
-                    className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Delete lead
-                  </button>
-                </div>
-              </article>
-            )
-          })}
+          <button
+            type="button"
+            disabled={leadPage >= leadTotalPages || isLoading}
+            onClick={() => setLeadPage((current) => Math.min(current + 1, leadTotalPages))}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next →
+          </button>
         </div>
       )}
-
-      <div className="mt-6 flex items-center justify-between">
-        <button
-          type="button"
-          disabled={leadPage <= 1 || isLoading}
-          onClick={() => setLeadPage((current) => Math.max(current - 1, 1))}
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Previous
-        </button>
-
-        <div className="text-sm text-slate-600">
-          Page {leadPage} of {Math.max(leadTotalPages, 1)}
-        </div>
-
-        <button
-          type="button"
-          disabled={leadPage >= leadTotalPages || isLoading}
-          onClick={() => setLeadPage((current) => Math.min(current + 1, leadTotalPages))}
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Next
-        </button>
-      </div>
     </section>
   )
 
@@ -849,7 +814,7 @@ const AdminPropertiesPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">User CRM</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Buyers, sellers, renters and admins</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Commercial users and admins</h2>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -870,6 +835,49 @@ const AdminPropertiesPage = () => {
               {role}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Commercial Subscription Fees</p>
+        <p className="mt-1 text-sm text-slate-600">Set platform fees per role. Values are in INR.</p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {['owner', 'agent', 'builder'].map((role) => (
+            <label key={role} className="rounded-2xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{role}</p>
+              <input
+                type="number"
+                min="0"
+                value={subscriptionFees[role]}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setSubscriptionFees((current) => ({
+                    ...current,
+                    [role]: value === '' ? '' : Number(value)
+                  }))
+                }}
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSaveSubscriptionFees}
+            disabled={isLoadingSubscriptionFees || isSavingSubscriptionFees}
+            className="rounded-xl bg-(--color-primary) px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isSavingSubscriptionFees ? 'Saving...' : 'Save Subscription Fees'}
+          </button>
+
+          {subscriptionMessage ? (
+            <p className="text-sm text-slate-600">{subscriptionMessage}</p>
+          ) : isLoadingSubscriptionFees ? (
+            <p className="text-sm text-slate-600">Loading subscription configuration...</p>
+          ) : null}
         </div>
       </div>
 
@@ -931,14 +939,14 @@ const AdminPropertiesPage = () => {
                   >
                     {item.isActive ? 'Deactivate' : 'Activate'} user
                   </button>
-                  {item.role === 'seller' ? (
+                  {['seller', 'owner', 'agent', 'builder'].includes(item.role) ? (
                     <button
                       type="button"
                       disabled={actionUserId === item._id}
                       onClick={() => handleVerifySeller(item)}
                       className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {item.isVerified ? 'Unverify seller' : 'Verify seller'}
+                      {item.isVerified ? 'Unverify commercial account' : 'Verify commercial account'}
                     </button>
                   ) : null}
                 </div>
@@ -1095,38 +1103,14 @@ const AdminPropertiesPage = () => {
 
   const renderOverviewTab = () => (
     <section className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Admin Overview</p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-900">Complete booking and lead management command center</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Track property moderation, buyer-seller lead pipeline, account control, and search analytics from one place.
-        </p>
-      </div>
-
-      <AdminStatsCards stats={stats} />
-
-      <div className="grid gap-4 lg:grid-cols-4">
-        <button type="button" onClick={() => setActiveTab('properties')} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Queue</p>
-          <p className="mt-2 text-lg font-semibold text-slate-900">Property Review</p>
-          <p className="mt-1 text-sm text-slate-600">Moderate pending, approved and rejected listings.</p>
-        </button>
-        <button type="button" onClick={() => setActiveTab('leads')} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Pipeline</p>
-          <p className="mt-2 text-lg font-semibold text-slate-900">Lead Operations</p>
-          <p className="mt-1 text-sm text-slate-600">Assign, contact, close and communicate with leads.</p>
-        </button>
-        <button type="button" onClick={() => setActiveTab('users')} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-          <p className="text-xs uppercase tracking-wide text-slate-500">CRM</p>
-          <p className="mt-2 text-lg font-semibold text-slate-900">People Management</p>
-          <p className="mt-1 text-sm text-slate-600">Manage buyers, sellers, renters and admins.</p>
-        </button>
-        <button type="button" onClick={() => setActiveTab('reports')} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Analytics</p>
-          <p className="mt-2 text-lg font-semibold text-slate-900">Reports Center</p>
-          <p className="mt-1 text-sm text-slate-600">Generate exports for management and operations.</p>
-        </button>
-      </div>
+      <AdminAnalyticsOverview
+        stats={stats}
+        properties={properties}
+        leads={leads}
+        users={users}
+        searchActivities={searchActivities}
+        onNavigateTab={setActiveTab}
+      />
     </section>
   )
 
@@ -1261,6 +1245,8 @@ const AdminPropertiesPage = () => {
         isOpen={Boolean(selectedProperty)}
         onClose={() => setSelectedProperty(null)}
         onReview={handleReview}
+        onDelete={handleDeleteProperty}
+        loadingActionType={actionPropertyType}
         isSubmitting={Boolean(actionPropertyId)}
       />
     </div>

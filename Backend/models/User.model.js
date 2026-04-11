@@ -7,9 +7,10 @@
  * 
  * Roles:
  * - admin: Full access
- * - seller: Can list properties
- * - buyer: Can browse & mark interest
- * - renter: Can browse rentals & mark interest
+ * - owner: Can list own properties
+ * - agent: Can list and manage client properties
+ * - builder: Can list projects and inventory
+ * - user: Can browse buy/rent and mark interest
  */
 
 const mongoose = require('mongoose');
@@ -66,10 +67,10 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['buyer', 'seller', 'renter', 'admin'],
-        message: 'Role must be buyer, seller, renter, or admin'
+        values: ['user', 'buyer', 'renter', 'owner', 'agent', 'builder', 'admin', 'seller'],
+        message: 'Role must be user, buyer, renter, owner, agent, builder, seller, or admin'
       },
-      default: 'buyer'
+      default: 'owner'
     },
 
     // Address
@@ -89,8 +90,22 @@ const userSchema = new mongoose.Schema(
       default: true
     },
 
-    // Seller Specific
-    businessName: String, // Only for sellers
+    // Business / commercial account details
+    businessName: String,
+    organizationName: String,
+    licenseNumber: String,
+    subscriptionPlan: {
+      type: String,
+      enum: ['free', 'basic', 'pro', 'enterprise'],
+      default: 'free'
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['inactive', 'trial', 'active', 'expired'],
+      default: 'inactive'
+    },
+    subscriptionStartDate: Date,
+    subscriptionEndDate: Date,
     sellerRating: {
       type: Number,
       min: 0,

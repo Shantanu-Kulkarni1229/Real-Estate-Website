@@ -120,6 +120,7 @@ function formatPostedTime(value) {
 const PropertyCard = ({ property, onViewDetails }) => {
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
+  const isCardClickable = typeof onViewDetails === 'function'
   const propertyId = getPropertyStorageId(property)
   const [isFavorite, setIsFavorite] = useState(() => {
     const liked = readLikedProperties()
@@ -138,6 +139,7 @@ const PropertyCard = ({ property, onViewDetails }) => {
 
   const handleFavoriteToggle = (event) => {
     event.preventDefault()
+    event.stopPropagation()
 
     if (!isAuthenticated) {
       setAuthNotice('Please login to like this property.')
@@ -179,8 +181,34 @@ const PropertyCard = ({ property, onViewDetails }) => {
     setAuthNotice('')
   }
 
+  const handleCardOpen = () => {
+    if (!isCardClickable) {
+      return
+    }
+
+    onViewDetails(property)
+  }
+
   return (
-    <article className="group relative w-72 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:w-80 lg:w-96">
+    <article
+      className={`group relative w-72 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:w-80 lg:w-96 ${
+        isCardClickable ? 'cursor-pointer' : 'cursor-default'
+      }`}
+      onClick={handleCardOpen}
+      onKeyDown={(event) => {
+        if (!isCardClickable) {
+          return
+        }
+
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onViewDetails(property)
+        }
+      }}
+      role={isCardClickable ? 'button' : undefined}
+      tabIndex={isCardClickable ? 0 : undefined}
+      aria-label={isCardClickable ? `Open details for ${property?.title || 'property'}` : undefined}
+    >
       <div className="pointer-events-none absolute inset-x-6 top-0 h-20 -translate-y-1/2 rounded-full bg-(--color-primary)/20 blur-2xl opacity-0 transition duration-300 group-hover:opacity-100" />
 
       <div className="block w-full text-left">
@@ -207,7 +235,7 @@ const PropertyCard = ({ property, onViewDetails }) => {
             type="button"
             aria-label={isFavorite ? 'Remove from wishlist' : 'Add to wishlist'}
             onClick={handleFavoriteToggle}
-            className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur transition duration-200 hover:bg-white"
+            className="absolute right-3 top-3 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur transition duration-200 hover:bg-white"
           >
             <svg
               className={`h-5 w-5 transition ${isFavorite ? 'fill-rose-500 text-rose-500' : 'fill-none text-slate-700'}`}
@@ -229,8 +257,11 @@ const PropertyCard = ({ property, onViewDetails }) => {
 
           <button
             type="button"
-            onClick={() => onViewDetails?.(property)}
-            className="absolute bottom-3 right-3 rounded-lg bg-(--color-cta-orange) px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white shadow-lg transition duration-200 hover:brightness-95 sm:opacity-0 sm:translate-y-2 sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
+            onClick={(event) => {
+              event.stopPropagation()
+              onViewDetails?.(property)
+            }}
+            className="absolute bottom-3 right-3 cursor-pointer rounded-lg bg-(--color-cta-orange) px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white shadow-lg transition duration-200 hover:brightness-95 sm:opacity-0 sm:translate-y-2 sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
           >
             View Details
           </button>
@@ -278,8 +309,11 @@ const PropertyCard = ({ property, onViewDetails }) => {
 
           <button
             type="button"
-            onClick={() => onViewDetails?.(property)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition duration-200 hover:border-(--color-primary) hover:text-(--color-primary)"
+            onClick={(event) => {
+              event.stopPropagation()
+              onViewDetails?.(property)
+            }}
+            className="w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition duration-200 hover:border-(--color-primary) hover:text-(--color-primary)"
           >
             View Complete Details
           </button>

@@ -14,8 +14,8 @@ const router = express.Router();
 router.get('/', getProperties);
 router.get('/:propertyId', getPropertyById);
 
-router.post('/', authenticate, authorize('seller', 'buyer', 'renter', 'admin'), createProperty);
-router.put('/:propertyId', authenticate, authorize('seller', 'buyer', 'renter', 'admin'), updateProperty);
-router.delete('/:propertyId', authenticate, authorize('seller', 'buyer', 'renter', 'admin'), deleteProperty);
+router.post('/', authenticate, authorize('owner', 'agent', 'builder', 'buyer', 'renter', 'admin', 'seller'), createProperty);
+router.put('/:propertyId', authenticate, authorize('owner', 'agent', 'builder', 'buyer', 'renter', 'admin', 'seller'), updateProperty);
+router.delete('/:propertyId', authenticate, authorize('owner', 'agent', 'builder', 'buyer', 'renter', 'admin', 'seller'), deleteProperty);
 
 module.exports = router;

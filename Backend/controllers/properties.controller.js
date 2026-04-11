@@ -23,6 +23,82 @@ function normalizeCityName(value) {
   return cityAliases[normalized] || String(value).trim();
 }
 
+function normalizeRole(role) {
+  const rawRole = String(role || '').trim().toLowerCase();
+  return rawRole === 'seller' ? 'owner' : rawRole;
+}
+
+function normalizeUnitConfigurations(rawUnits) {
+  if (!Array.isArray(rawUnits)) {
+    return [];
+  }
+
+  return rawUnits
+    .map((unit) => ({
+      unitLabel: String(unit?.unitLabel || '').trim(),
+      bhk: parsePositiveNumber(unit?.bhk),
+      sizeSqFt: parsePositiveNumber(unit?.sizeSqFt),
+      price: parsePositiveNumber(unit?.price)
+    }))
+    .filter((unit) => unit.price !== undefined)
+    .map((unit) => ({
+      unitLabel: unit.unitLabel || undefined,
+      bhk: unit.bhk,
+      sizeSqFt: unit.sizeSqFt,
+      price: unit.price
+    }));
+}
+
+function getBasePrice(explicitPrice, unitConfigurations) {
+  const normalizedPrice = parsePositiveNumber(explicitPrice);
+  if (!Array.isArray(unitConfigurations) || unitConfigurations.length === 0) {
+    return normalizedPrice;
+  }
+
+  const unitPrices = unitConfigurations
+    .map((unit) => parsePositiveNumber(unit?.price))
+    .filter((value) => value !== undefined);
+
+  if (unitPrices.length === 0) {
+    return normalizedPrice;
+  }
+
+  return Math.min(...unitPrices);
+}
+
+function isPaidAgent(user) {
+  if (!user) {
+    return false;
+  }
+
+  return normalizeRole(user.role) === 'agent' && String(user.subscriptionStatus || '').toLowerCase() === 'active';
+}
+
+function withContactMetadata(propertyDoc) {
+  if (!propertyDoc) {
+    return propertyDoc;
+  }
+
+  const { contactNumber, createdBy, ...rest } = propertyDoc;
+  const safeCreator = createdBy
+    ? {
+        ...createdBy,
+        role: normalizeRole(createdBy.role),
+        subscriptionStatus: createdBy.subscriptionStatus || 'inactive'
+      }
+    : createdBy;
+
+  const directContactEnabled = isPaidAgent(safeCreator);
+
+  return {
+    ...rest,
+    createdBy: safeCreator,
+    directContactEnabled,
+    contactMode: directContactEnabled ? 'direct-agent' : 'admin-assisted',
+    publicContactNumber: directContactEnabled ? contactNumber : ''
+  };
+}
+
 function isOwner(requestUser, propertyDoc) {
   if (!requestUser || !propertyDoc) {
     return false;
@@ -37,6 +113,8 @@ function isOwner(requestUser, propertyDoc) {
 
 function getCreatePayload(body, user) {
   const sellerId = body.createdBy || user.userId;
+  const unitConfigurations = normalizeUnitConfigurations(body.unitConfigurations);
+  const basePrice = getBasePrice(body.price, unitConfigurations);
 
   return {
     createdBy: sellerId,
@@ -45,7 +123,8 @@ function getCreatePayload(body, user) {
     description: body.description,
     propertyType: body.propertyType,
     listingType: body.listingType,
-    price: body.price,
+    price: basePrice,
+    unitConfigurations,
     negotiable: body.negotiable,
     address: body.address,
     city: body.city,
@@ -74,6 +153,7 @@ function getUpdatePayload(body, isAdmin) {
     'propertyType',
     'listingType',
     'price',
+    'unitConfigurations',
     'negotiable',
     'address',
     'city',
@@ -102,6 +182,14 @@ function getUpdatePayload(body, isAdmin) {
   for (const field of allowedFields) {
     if (Object.prototype.hasOwnProperty.call(body, field)) {
       updates[field] = body[field];
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'unitConfigurations')) {
+    updates.unitConfigurations = normalizeUnitConfigurations(updates.unitConfigurations);
+    const derivedPrice = getBasePrice(updates.price, updates.unitConfigurations);
+    if (derivedPrice !== undefined) {
+      updates.price = derivedPrice;
     }
   }
 
@@ -157,7 +245,23 @@ async function createProperty(req, res) {
     'contactNumber'
   ];
 
-  const missing = required.filter((field) => !req.body || req.body[field] === undefined || req.body[field] === null || req.body[field] === '');
+  const normalizedUnitConfigurations = normalizeUnitConfigurations(req.body?.unitConfigurations);
+
+  const missing = required.filter((field) => {
+    if (field === 'price' && normalizedUnitConfigurations.length > 0) {
+      return false;
+    }
+
+    return !req.body || req.body[field] === undefined || req.body[field] === null || req.body[field] === '';
+  });
+
+  if (normalizedUnitConfigurations.length > 100) {
+    return res.status(400).json({
+      success: false,
+      message: 'Maximum 100 unit configurations allowed'
+    });
+  }
+
   if (missing.length > 0) {
     return res.status(400).json({
       success: false,
@@ -204,18 +308,19 @@ async function getProperties(req, res) {
 
     const [items, total] = await Promise.all([
       Property.find(filters)
-        .select('-contactNumber')
         .sort({ [sortBy]: sortOrder })
         .skip((page - 1) * limit)
         .limit(limit)
-        .populate('createdBy', 'firstName lastName businessName')
+        .populate('createdBy', 'firstName lastName businessName role subscriptionStatus')
         .lean(),
       Property.countDocuments(filters)
     ]);
 
+    const sanitizedItems = items.map((item) => withContactMetadata(item));
+
     return res.status(200).json({
       success: true,
-      data: items,
+      data: sanitizedItems,
       pagination: {
         page,
         limit,
@@ -243,8 +348,7 @@ async function getPropertyById(req, res) {
 
   try {
     const property = await Property.findById(propertyId)
-      .select('-contactNumber')
-      .populate('createdBy', 'firstName lastName businessName');
+      .populate('createdBy', 'firstName lastName businessName role subscriptionStatus');
     if (!property) {
       return res.status(404).json({
         success: false,
@@ -261,9 +365,11 @@ async function getPropertyById(req, res) {
 
     await Property.findByIdAndUpdate(propertyId, { $inc: { viewsCount: 1 } });
 
+    const responseData = withContactMetadata(property.toObject());
+
     return res.status(200).json({
       success: true,
-      data: property
+      data: responseData
     });
   } catch (error) {
     return res.status(500).json({

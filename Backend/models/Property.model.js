@@ -57,6 +57,23 @@ const commercialSpecSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const unitConfigurationSchema = new mongoose.Schema(
+  {
+    unitLabel: {
+      type: String,
+      trim: true,
+      maxlength: [120, 'Unit label cannot exceed 120 characters']
+    },
+    bhk: { type: Number, min: 0 },
+    sizeSqFt: { type: Number, min: 0 },
+    price: {
+      type: Number,
+      min: [0, 'Unit price cannot be negative']
+    }
+  },
+  { _id: false }
+);
+
 const propertySchema = new mongoose.Schema(
   {
     createdBy: {
@@ -116,6 +133,16 @@ const propertySchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Price is required'],
       min: [0, 'Price cannot be negative']
+    },
+    unitConfigurations: {
+      type: [unitConfigurationSchema],
+      default: [],
+      validate: {
+        validator: function (value) {
+          return Array.isArray(value) && value.length <= 100;
+        },
+        message: 'Maximum 100 unit configurations allowed'
+      }
     },
     negotiable: {
       type: Boolean,

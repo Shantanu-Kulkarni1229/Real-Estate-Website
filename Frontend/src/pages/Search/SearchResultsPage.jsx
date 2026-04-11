@@ -121,6 +121,26 @@ const SearchResultsPage = () => {
   }, [query, searchType, propertyType, city])
 
   useEffect(() => {
+    const incomingQuery = searchParams.get('q') || ''
+    const incomingCity = searchParams.get('city') || 'All India'
+    const incomingSearchType = searchParams.get('searchType') || 'buy'
+    const incomingPropertyType = normalizeSearchPropertyType(searchParams.get('propertyType'))
+    const incomingMinPrice =
+      parseBudgetLabelToNumber(searchParams.get('budgetMin')) || searchParams.get('minPrice') || ''
+    const incomingMaxPrice =
+      parseBudgetLabelToNumber(searchParams.get('budgetMax')) || searchParams.get('maxPrice') || ''
+    const incomingSort = searchParams.get('sort') || 'newest'
+
+    setQuery((prev) => (prev === incomingQuery ? prev : incomingQuery))
+    setCity((prev) => (prev === incomingCity ? prev : incomingCity))
+    setSearchType((prev) => (prev === incomingSearchType ? prev : incomingSearchType))
+    setPropertyType((prev) => (prev === incomingPropertyType ? prev : incomingPropertyType))
+    setMinPrice((prev) => (prev === incomingMinPrice ? prev : incomingMinPrice))
+    setMaxPrice((prev) => (prev === incomingMaxPrice ? prev : incomingMaxPrice))
+    setSort((prev) => (prev === incomingSort ? prev : incomingSort))
+  }, [searchParams])
+
+  useEffect(() => {
     const next = new URLSearchParams()
     if (query) next.set('q', query)
     if (city) next.set('city', city)

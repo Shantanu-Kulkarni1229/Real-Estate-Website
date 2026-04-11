@@ -4,10 +4,32 @@ import { useAuth } from '../../context/AuthContext'
 import LoadingScreen from '../../components/LoadingScreen'
 
 const roleOptions = [
-  { value: 'seller', label: 'Seller', description: 'List and manage properties with leads.' },
-  { value: 'buyer', label: 'Buyer', description: 'Buy properties and also post listings.' },
-  { value: 'renter', label: 'Renter', description: 'Explore rentals and also post listings.' }
+  { value: 'user', label: 'User', description: 'Use one account for both buying and renting.' },
+  { value: 'owner', label: 'Owner', description: 'Post your own property for free.' },
+  { value: 'agent', label: 'Agent', description: 'Manage multiple owner listings with subscription.' },
+  { value: 'builder', label: 'Builder', description: 'Publish projects and inventory with subscription.' }
 ]
+
+const COMMERCIAL_ROLES = ['owner', 'agent', 'builder', 'admin']
+
+function canAccessPath(role, path) {
+  if (!path) {
+    return true
+  }
+
+  const normalizedRole = String(role || '').trim().toLowerCase()
+  const normalizedPath = String(path).trim().toLowerCase()
+
+  if (normalizedPath.startsWith('/admin')) {
+    return normalizedRole === 'admin'
+  }
+
+  if (normalizedPath.startsWith('/post-property') || normalizedPath.startsWith('/dashboard')) {
+    return COMMERCIAL_ROLES.includes(normalizedRole)
+  }
+
+  return true
+}
 
 const inputClassName = 'mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-(--color-primary) focus:ring-2 focus:ring-(--color-secondary-bg)'
 
@@ -15,7 +37,7 @@ const AuthPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { login, signup, isAuthenticated, isReady, user } = useAuth()
-  const redirectTo = new URLSearchParams(location.search).get('redirect') || '/post-property'
+  const requestedRedirect = new URLSearchParams(location.search).get('redirect') || ''
   const [mode, setMode] = useState('login')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,14 +49,18 @@ const AuthPage = () => {
     phone: '',
     password: '',
     confirmPassword: '',
-    role: 'seller'
+    role: 'user',
+    businessName: '',
+    licenseNumber: ''
   })
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(redirectTo, { replace: true })
+      const fallbackPath = COMMERCIAL_ROLES.includes(user?.role) ? '/post-property' : '/'
+      const safeRedirect = canAccessPath(user?.role, requestedRedirect) ? (requestedRedirect || fallbackPath) : '/'
+      navigate(safeRedirect, { replace: true })
     }
-  }, [isAuthenticated, navigate, redirectTo])
+  }, [isAuthenticated, navigate, requestedRedirect, user?.role])
 
   if (!isReady) {
     return <LoadingScreen fullScreen label="Loading Auth" sublabel="Preparing your sign in experience" />
@@ -46,8 +72,11 @@ const AuthPage = () => {
     setIsSubmitting(true)
 
     try {
-      await login(loginForm)
-      navigate(redirectTo, { replace: true })
+      const response = await login(loginForm)
+      const role = response?.data?.role
+      const fallbackPath = COMMERCIAL_ROLES.includes(role) ? '/post-property' : '/'
+      const safeRedirect = canAccessPath(role, requestedRedirect) ? (requestedRedirect || fallbackPath) : '/'
+      navigate(safeRedirect, { replace: true })
     } catch (submissionError) {
       setError(submissionError.message || 'Unable to sign in')
     } finally {
@@ -59,24 +88,39 @@ const AuthPage = () => {
     event.preventDefault()
     setError('')
 
+    const selectedRole = signupForm.role
+
     if (signupForm.password !== signupForm.confirmPassword) {
       setError('Password and confirm password must match')
       return
     }
 
+    if (selectedRole === 'agent' || selectedRole === 'builder') {
+      if (!signupForm.businessName.trim()) {
+        setError('Business name is required for agent and builder accounts')
+        return
+      }
+    }
+
     setIsSubmitting(true)
 
     try {
-      await signup({
+      const response = await signup({
         firstName: signupForm.firstName,
         lastName: signupForm.lastName,
         email: signupForm.email,
         phone: signupForm.phone,
         password: signupForm.password,
         whatsappNumber: signupForm.phone,
-        role: signupForm.role
+        role: selectedRole,
+        businessName: signupForm.businessName,
+        organizationName: signupForm.businessName,
+        licenseNumber: signupForm.licenseNumber
       })
-      navigate(redirectTo, { replace: true })
+      const role = response?.data?.role
+      const fallbackPath = COMMERCIAL_ROLES.includes(role) ? '/post-property' : '/'
+      const safeRedirect = canAccessPath(role, requestedRedirect) ? (requestedRedirect || fallbackPath) : '/'
+      navigate(safeRedirect, { replace: true })
     } catch (submissionError) {
       setError(submissionError.message || 'Unable to create account')
     } finally {
@@ -110,11 +154,11 @@ const AuthPage = () => {
                 Sign in and publish a complete listing in one flow.
               </h1>
               <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
-                The listing page is protected for authenticated users. Buyers, sellers, renters, and admins can create properties, upload images, and submit the full property payload directly to the backend.
+                Users can sign in once and explore both buy and rent listings. Owners, agents, and builders can also manage listings and subscriptions.
               </p>
             </div>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            <div className="mt-10 grid gap-4 sm:grid-cols-3 lg:grid-cols-3">
               {roleOptions.map((option) => (
                 <div key={option.value} className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-sm">
                   <p className="text-sm font-semibold text-white">{option.label}</p>
@@ -145,6 +189,10 @@ const AuthPage = () => {
                 </button>
               </div>
             </div>
+
+              <p className="mt-4 text-sm text-slate-500">
+                Choose your account type. One normal user account supports both buy and rent. Commercial roles can post and manage listings.
+              </p>
 
             {error ? (
               <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -233,9 +281,35 @@ const AuthPage = () => {
                   </div>
                 </div>
 
+                {(signupForm.role === 'agent' || signupForm.role === 'builder') ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">Business / Organization name</label>
+                      <input
+                        type="text"
+                        required
+                        value={signupForm.businessName}
+                        onChange={(event) => setSignupForm((current) => ({ ...current, businessName: event.target.value }))}
+                        className={inputClassName}
+                        placeholder={signupForm.role === 'agent' ? 'Your agency name' : 'Your builder company name'}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-700">License / RERA number</label>
+                      <input
+                        type="text"
+                        value={signupForm.licenseNumber}
+                        onChange={(event) => setSignupForm((current) => ({ ...current, licenseNumber: event.target.value }))}
+                        className={inputClassName}
+                        placeholder="Optional, but recommended"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
                 <div>
                   <label className="text-sm font-medium text-slate-700">Role</label>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {roleOptions.map((option) => (
                       <button
                         key={option.value}
@@ -278,7 +352,7 @@ const AuthPage = () => {
                   disabled={isSubmitting}
                   className="inline-flex w-full items-center justify-center rounded-2xl bg-(--color-cta-orange) px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition duration-200 hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isSubmitting ? 'Creating account...' : 'Create account'}
+                  {isSubmitting ? 'Creating account...' : `Create ${signupForm.role} account`}
                 </button>
               </form>
             )}

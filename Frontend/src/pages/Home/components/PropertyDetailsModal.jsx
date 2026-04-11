@@ -12,20 +12,56 @@ function formatPrice(property) {
   return property.price || 'Price on request'
 }
 
+function isValidEmail(value) {
+  if (!value) return true
+  return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(String(value))
+}
+
+function isValidMobile(value) {
+  return /^[0-9]{10}$/.test(String(value || ''))
+}
+
 const PropertyDetailsModal = ({ property, isOpen, onClose }) => {
   const navigate = useNavigate()
   const { isAuthenticated, token, user } = useAuth()
-  const [message, setMessage] = useState('')
+  const [callbackForm, setCallbackForm] = useState({
+    name: '',
+    mobileNumber: '',
+    email: '',
+    whatsappNumber: '',
+    message: ''
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
 
   useEffect(() => {
     if (!isOpen) {
-      setMessage('')
+      setCallbackForm({
+        name: '',
+        mobileNumber: '',
+        email: '',
+        whatsappNumber: '',
+        message: ''
+      })
       setStatusMessage('')
       setIsSubmitting(false)
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated || !user) {
+      return
+    }
+
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+    setCallbackForm((current) => ({
+      ...current,
+      name: current.name || fullName || user.email || '',
+      mobileNumber: current.mobileNumber || user.phone || '',
+      email: current.email || user.email || '',
+      whatsappNumber: current.whatsappNumber || user.whatsappNumber || user.phone || ''
+    }))
+  }, [isAuthenticated, isOpen, user])
 
   if (!isOpen || !property) {
     return null
@@ -34,22 +70,26 @@ const PropertyDetailsModal = ({ property, isOpen, onClose }) => {
   const amenities = Array.isArray(property.amenities) ? property.amenities : []
   const images = Array.isArray(property.images) && property.images.length > 0 ? property.images : []
   const specCategory = getPropertySpecCategory(property.propertyType)
+  const isDirectContactEnabled = Boolean(property.directContactEnabled && property.publicContactNumber)
 
   const handleGetConnected = async () => {
-    if (!isAuthenticated) {
-      window.alert('Please login to get connected with this property.')
-      navigate(`/auth?redirect=${encodeURIComponent('/')}`)
+    if (!callbackForm.name.trim()) {
+      setStatusMessage('Name is required for callback requests.')
       return
     }
 
-    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-    const contactName = fullName || user?.firstName || user?.email || 'Buyer'
-    const contactEmail = user?.email
-    const contactPhone = user?.phone
-    const whatsapp = user?.whatsappNumber || user?.phone
+    if (!isValidMobile(callbackForm.mobileNumber)) {
+      setStatusMessage('Please enter a valid 10-digit mobile number.')
+      return
+    }
 
-    if (!contactEmail || !contactPhone) {
-      setStatusMessage('Your profile needs email and phone number before getting connected.')
+    if (callbackForm.whatsappNumber && !isValidMobile(callbackForm.whatsappNumber)) {
+      setStatusMessage('Please enter a valid 10-digit WhatsApp number or keep it empty.')
+      return
+    }
+
+    if (!isValidEmail(callbackForm.email)) {
+      setStatusMessage('Please enter a valid email or keep it empty.')
       return
     }
 
@@ -59,19 +99,22 @@ const PropertyDetailsModal = ({ property, isOpen, onClose }) => {
     try {
       await apiRequest('/interests', {
         method: 'POST',
-        token,
+        token: isAuthenticated ? token : undefined,
         body: {
-          name: contactName,
-          mobileNumber: contactPhone,
-          email: contactEmail,
-          whatsappNumber: whatsapp,
-          message: message || `Interested in ${property.title}`,
+          name: callbackForm.name.trim(),
+          mobileNumber: callbackForm.mobileNumber.trim(),
+          email: callbackForm.email.trim() || undefined,
+          whatsappNumber: callbackForm.whatsappNumber.trim() || callbackForm.mobileNumber.trim(),
+          message: callbackForm.message || `Interested in ${property.title}`,
           propertyId: property._id
         }
       })
 
-      setStatusMessage('Your interest has been sent. The admin will connect you manually with the seller.')
-      setMessage('')
+      setStatusMessage('Your callback request has been sent. We will contact you soon.')
+      setCallbackForm((current) => ({
+        ...current,
+        message: ''
+      }))
     } catch (error) {
       setStatusMessage(error.message || 'Failed to connect with this property')
     } finally {
@@ -167,21 +210,77 @@ const PropertyDetailsModal = ({ property, isOpen, onClose }) => {
 
             <div className={detailRowClass}>
               <p className="text-xs uppercase tracking-wide text-slate-500">Connect</p>
-              <textarea
-                rows="4"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="Tell the admin what you are looking for"
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
-              />
-              <button
-                type="button"
-                onClick={handleGetConnected}
-                disabled={isSubmitting}
-                className="mt-3 w-full rounded-2xl bg-(--color-cta-orange) px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isAuthenticated ? 'Get Connected' : 'Login to Get Connected'}
-              </button>
+              {isDirectContactEnabled ? (
+                <div className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Paid Agent Listing</p>
+                  <p className="mt-1 text-sm text-slate-700">Direct contact is enabled for this property.</p>
+                  <p className="mt-1 text-base font-semibold text-slate-900">{property.publicContactNumber}</p>
+                  <div className="mt-2 flex gap-2">
+                    <a
+                      href={`tel:${property.publicContactNumber}`}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                    >
+                      Call
+                    </a>
+                    <a
+                      href={`https://wa.me/91${property.publicContactNumber}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                    >
+                      WhatsApp
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/properties/${property._id}`)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Full Details
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-2 space-y-2">
+                    <input
+                      type="text"
+                      value={callbackForm.name}
+                      onChange={(event) => setCallbackForm((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Your name"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
+                    />
+                    <input
+                      type="tel"
+                      value={callbackForm.mobileNumber}
+                      onChange={(event) => setCallbackForm((current) => ({ ...current, mobileNumber: event.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      placeholder="Mobile number (required)"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
+                    />
+                    <input
+                      type="email"
+                      value={callbackForm.email}
+                      onChange={(event) => setCallbackForm((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="Email (optional)"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
+                    />
+                    <textarea
+                      rows="3"
+                      value={callbackForm.message}
+                      onChange={(event) => setCallbackForm((current) => ({ ...current, message: event.target.value }))}
+                      placeholder="Tell the admin what you are looking for"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGetConnected}
+                    disabled={isSubmitting}
+                    className="mt-3 w-full rounded-2xl bg-(--color-cta-orange) px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Request Callback'}
+                  </button>
+                </>
+              )}
               {statusMessage ? <p className="mt-2 text-sm text-slate-600">{statusMessage}</p> : null}
             </div>
 

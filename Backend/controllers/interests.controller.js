@@ -40,14 +40,27 @@ async function createInterest(req, res) {
     email,
     whatsappNumber,
     message,
-    propertyId,
-    userId
+    propertyId
   } = req.body || {};
 
-  if (!name || !mobileNumber || !email || !propertyId) {
+  if (!name || !mobileNumber || !propertyId) {
     return res.status(400).json({
       success: false,
-      message: 'Missing required fields: name, mobileNumber, email, propertyId'
+      message: 'Missing required fields: name, mobileNumber, propertyId'
+    });
+  }
+
+  if (!/^[0-9]{10}$/.test(String(mobileNumber))) {
+    return res.status(400).json({
+      success: false,
+      message: 'mobileNumber must be a 10-digit number'
+    });
+  }
+
+  if (email && !/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(String(email))) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide a valid email'
     });
   }
 
@@ -58,13 +71,10 @@ async function createInterest(req, res) {
     });
   }
 
-  const buyerId = req.user && req.user.userId ? req.user.userId : userId;
-  if (!buyerId || !mongoose.Types.ObjectId.isValid(buyerId)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid buyer user ID'
-    });
-  }
+  const rawBuyerId = req.user && req.user.userId ? req.user.userId : null;
+  const buyerId = rawBuyerId && mongoose.Types.ObjectId.isValid(rawBuyerId)
+    ? rawBuyerId
+    : null;
 
   try {
     const property = await Property.findById(propertyId);
@@ -75,30 +85,37 @@ async function createInterest(req, res) {
       });
     }
 
-    if (property.createdBy.toString() === buyerId.toString()) {
+    if (buyerId && property.createdBy.toString() === buyerId.toString()) {
       return res.status(400).json({
         success: false,
         message: 'Seller cannot create interest in their own property'
       });
     }
 
-    const existing = await Interest.findOne({ buyerId, propertyId });
+    const duplicateFilters = buyerId
+      ? { buyerId, propertyId }
+      : { propertyId, mobile: mobileNumber, sourceType: 'public' };
+
+    const existing = await Interest.findOne(duplicateFilters);
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: 'Interest already submitted for this property'
+        message: buyerId
+          ? 'Interest already submitted for this property'
+          : 'A callback request already exists for this mobile number and property'
       });
     }
 
     const lead = await Interest.create({
-      buyerId,
+      ...(buyerId ? { buyerId } : {}),
       propertyId,
       sellerId: property.createdBy,
       name,
-      email,
+      email: email || undefined,
       mobile: mobileNumber,
       whatsapp: whatsappNumber || mobileNumber,
       message,
+      sourceType: buyerId ? 'authenticated' : 'public',
       status: 'new'
     });
 
@@ -107,15 +124,19 @@ async function createInterest(req, res) {
       await initializeGoogleSheets();
 
       const [buyerUser, sellerUser] = await Promise.all([
-        User.findById(buyerId),
+        buyerId ? User.findById(buyerId) : null,
         User.findById(property.createdBy)
       ]);
 
+      const fallbackBuyerId = buyerId
+        ? buyerId.toString()
+        : `public-${mobileNumber}-${property._id.toString()}`;
+
       const syncResult = await syncInterestToGoogleSheets({
         buyer: {
-          id: buyerId.toString(),
+          id: fallbackBuyerId,
           name: name || `${buyerUser?.firstName || ''} ${buyerUser?.lastName || ''}`.trim(),
-          email,
+          email: email || buyerUser?.email || '',
           mobile: mobileNumber,
           whatsapp: whatsappNumber || mobileNumber
         },

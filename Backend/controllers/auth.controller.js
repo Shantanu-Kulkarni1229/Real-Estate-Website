@@ -2,6 +2,22 @@ const User = require('../models/User.model');
 const { generateToken } = require('../utils/jwt.utils');
 const { comparePassword } = require('../utils/password.utils');
 
+const ROLE_ALIASES = {
+  seller: 'owner',
+  buyer: 'user',
+  renter: 'user'
+};
+
+const COMMERCIAL_ROLES = ['owner', 'agent', 'builder'];
+const CONSUMER_ROLES = ['user'];
+const ALLOWED_REGISTER_ROLES = [...COMMERCIAL_ROLES, ...CONSUMER_ROLES];
+const ALLOWED_LOGIN_ROLES = [...ALLOWED_REGISTER_ROLES, 'admin'];
+
+function normalizeRole(role) {
+  const rawRole = String(role || '').trim().toLowerCase();
+  return ROLE_ALIASES[rawRole] || rawRole || 'owner';
+}
+
 function sanitizeUser(userDoc) {
   return {
     userId: userDoc._id,
@@ -10,7 +26,11 @@ function sanitizeUser(userDoc) {
     email: userDoc.email,
     phone: userDoc.phone,
     whatsappNumber: userDoc.whatsappNumber,
-    role: userDoc.role,
+    role: normalizeRole(userDoc.role),
+    businessName: userDoc.businessName || '',
+    organizationName: userDoc.organizationName || '',
+    subscriptionPlan: userDoc.subscriptionPlan || 'free',
+    subscriptionStatus: userDoc.subscriptionStatus || 'inactive',
     isVerified: userDoc.isVerified,
     isActive: userDoc.isActive,
     createdAt: userDoc.createdAt,
@@ -33,12 +53,27 @@ async function register(req, res) {
     });
   }
 
-  const { firstName, lastName, email, password, phone, whatsappNumber, role } = req.body;
+  const { firstName, lastName, email, password, phone, whatsappNumber, role, businessName, organizationName, licenseNumber } = req.body;
+  const normalizedRole = normalizeRole(role);
 
-  if (role === 'admin') {
+  if (normalizedRole === 'admin') {
     return res.status(403).json({
       success: false,
       message: 'Admin users can only be created using the dedicated admin script'
+    });
+  }
+
+  if (!ALLOWED_REGISTER_ROLES.includes(normalizedRole)) {
+    return res.status(400).json({
+      success: false,
+      message: `Allowed roles: ${ALLOWED_REGISTER_ROLES.join(', ')}`
+    });
+  }
+
+  if (['agent', 'builder'].includes(normalizedRole) && !String(businessName || organizationName || '').trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Business or organization name is required for agent and builder accounts'
     });
   }
 
@@ -58,13 +93,16 @@ async function register(req, res) {
       password,
       phone,
       whatsappNumber,
-      role: role || 'buyer'
+      role: normalizedRole,
+      businessName: businessName || organizationName || '',
+      organizationName: organizationName || businessName || '',
+      licenseNumber: licenseNumber || ''
     });
 
     const tokenPayload = {
       userId: user._id.toString(),
       email: user.email,
-      role: user.role
+      role: normalizeRole(user.role)
     };
 
     const token = generateToken(tokenPayload);
@@ -117,10 +155,18 @@ async function login(req, res) {
       });
     }
 
+    const normalizedRole = normalizeRole(user.role);
+    if (!ALLOWED_LOGIN_ROLES.includes(normalizedRole)) {
+      return res.status(403).json({
+        success: false,
+        message: `Login is not allowed for role: ${normalizedRole}`
+      });
+    }
+
     const tokenPayload = {
       userId: user._id.toString(),
       email: user.email,
-      role: user.role
+      role: normalizedRole
     };
 
     const token = generateToken(tokenPayload);
@@ -140,13 +186,21 @@ async function login(req, res) {
 }
 
 async function verify(req, res) {
+  const normalizedRole = normalizeRole(req.user.role);
+  if (!ALLOWED_LOGIN_ROLES.includes(normalizedRole)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Session role is no longer allowed for login access'
+    });
+  }
+
   return res.status(200).json({
     success: true,
     message: 'Token is valid',
     data: {
       userId: req.user.userId,
       email: req.user.email,
-      role: req.user.role
+      role: normalizedRole
     }
   });
 }

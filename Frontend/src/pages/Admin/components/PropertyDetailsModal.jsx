@@ -52,7 +52,7 @@ function formatSpec(specifications = {}) {
   }
 }
 
-const PropertyDetailsModal = ({ property, isOpen, onClose, onReview, isSubmitting }) => {
+const PropertyDetailsModal = ({ property, isOpen, onClose, onReview, onDelete, loadingActionType, isSubmitting }) => {
   const [approveMessage, setApproveMessage] = useState('')
   const [rejectMessage, setRejectMessage] = useState('')
   const [localError, setLocalError] = useState('')
@@ -65,6 +65,9 @@ const PropertyDetailsModal = ({ property, isOpen, onClose, onReview, isSubmittin
 
   const createdBy = property.createdBy || {}
   const sellerName = [createdBy.firstName, createdBy.lastName].filter(Boolean).join(' ').trim() || 'Unknown Seller'
+  const isPending = property.status === 'pending'
+  const isApproved = property.status === 'approved'
+  const isRejected = property.status === 'rejected'
 
   const handleApprove = () => {
     setLocalError('')
@@ -81,44 +84,49 @@ const PropertyDetailsModal = ({ property, isOpen, onClose, onReview, isSubmittin
     onReview(property._id, 'rejected', rejectMessage)
   }
 
+  const handleDelete = () => {
+    setLocalError('')
+    onDelete(property._id)
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4">
-      <div className="my-6 w-full max-w-5xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-slate-200 p-5">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm">
+      <div className="my-6 w-full max-w-5xl rounded-3xl border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.28)]">
+        <div className="flex items-start justify-between border-b border-slate-200/80 p-5 lg:p-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Property Details</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-900">{property.title}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Property Details</p>
+            <h2 className="mt-2 text-3xl font-bold text-slate-950">{property.title}</h2>
             <p className="mt-1 text-sm text-slate-600">{property.city}, {property.state}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
             Close
           </button>
         </div>
 
-        <div className="grid gap-5 p-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_0.85fr] lg:p-6">
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(property.images || []).slice(0, 6).map((image, index) => (
-                <img key={`${image}-${index}`} src={image} alt={`Property ${index + 1}`} className="h-32 w-full rounded-xl object-cover" />
+                <img key={`${image}-${index}`} src={image} alt={`Property ${index + 1}`} className="h-32 w-full rounded-2xl object-cover" />
               ))}
             </div>
 
-            <div>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <p className={labelClass}>Description</p>
               <p className="mt-2 text-sm leading-6 text-slate-700">{property.description}</p>
             </div>
 
-            <div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className={labelClass}>{spec.title}</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {spec.entries
                   .filter(([, value]) => value !== undefined && value !== null && value !== '')
                   .map(([key, value]) => (
-                    <div key={key} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div key={key} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                       <p className="text-xs text-slate-500">{key}</p>
                       <p className="text-sm font-semibold text-slate-900">{String(value)}</p>
                     </div>
@@ -128,14 +136,14 @@ const PropertyDetailsModal = ({ property, isOpen, onClose, onReview, isSubmittin
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <p className={labelClass}>Seller</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{sellerName}</p>
               <p className="mt-1 text-sm text-slate-600">{createdBy.email || 'No email'}</p>
               <p className="text-sm text-slate-600">{createdBy.phone || property.contactNumber || 'No contact'}</p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <p className={labelClass}>Property Summary</p>
               <p className="mt-2 text-sm text-slate-700">Price: INR {Number(property.price || 0).toLocaleString('en-IN')}</p>
               <p className="text-sm text-slate-700">Type: <span className="capitalize">{property.propertyType}</span></p>
@@ -151,49 +159,81 @@ const PropertyDetailsModal = ({ property, isOpen, onClose, onReview, isSubmittin
               ) : null}
             </div>
 
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-semibold text-emerald-800">Approve Property</p>
-              <textarea
-                rows="3"
-                value={approveMessage}
-                onChange={(event) => setApproveMessage(event.target.value)}
-                placeholder="Optional note for seller"
-                className="mt-2 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
-              />
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleApprove}
-                className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                Approve and notify seller
-              </button>
-            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold text-slate-900">Review Actions</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
+                {isPending
+                  ? 'Approve or reject the pending listing.'
+                  : isApproved
+                    ? 'Approved properties can be rejected again or deleted.'
+                    : 'Rejected properties can be approved back into the marketplace.'}
+              </p>
 
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <p className="text-sm font-semibold text-rose-800">Reject Property</p>
-              <textarea
-                rows="4"
-                value={rejectMessage}
-                onChange={(event) => setRejectMessage(event.target.value)}
-                placeholder="Required: explain why this property is rejected"
-                className="mt-2 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-rose-400"
-              />
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleReject}
-                className="mt-3 w-full rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                Reject and notify seller
-              </button>
-            </div>
+              {isPending || isRejected ? (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-800">Approve Property</p>
+                  <textarea
+                    rows="3"
+                    value={approveMessage}
+                    onChange={(event) => setApproveMessage(event.target.value)}
+                    placeholder="Optional note for seller"
+                    className="mt-2 w-full rounded-2xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleApprove}
+                    className="mt-3 w-full rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSubmitting && loadingActionType === 'approved' ? 'Approving...' : 'Approve and notify seller'}
+                  </button>
+                </div>
+              ) : null}
 
-            {localError ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {localError}
-              </div>
-            ) : null}
+              {isPending || isApproved ? (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                  <p className="text-sm font-semibold text-rose-800">Reject Property</p>
+                  <textarea
+                    rows="4"
+                    value={rejectMessage}
+                    onChange={(event) => setRejectMessage(event.target.value)}
+                    placeholder="Required: explain why this property is rejected"
+                    className="mt-2 w-full rounded-2xl border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-rose-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleReject}
+                    className="mt-3 w-full rounded-full bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSubmitting && loadingActionType === 'rejected' ? 'Rejecting...' : 'Reject and notify seller'}
+                  </button>
+                </div>
+              ) : null}
+
+              {isApproved ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">Delete Property</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Remove this property completely from the platform.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleDelete}
+                    className="mt-3 w-full rounded-full border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSubmitting && loadingActionType === 'delete' ? 'Deleting...' : 'Delete property'}
+                  </button>
+                </div>
+              ) : null}
+
+              {localError ? (
+                <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {localError}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

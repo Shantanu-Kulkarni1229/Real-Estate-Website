@@ -69,6 +69,7 @@ app.use('/api/v1/users', require('./routes/users.routes'));
 app.use('/api/v1/properties', require('./routes/properties.routes'));
 app.use('/api/v1/interests', require('./routes/interests.routes'));
 app.use('/api/v1/admin', require('./routes/admin.routes'));
+app.use('/api/v1/testimonials', require('./routes/testimonials.routes'));
 
 // ==================== ERROR HANDLING ====================
 // 404 Route Handler

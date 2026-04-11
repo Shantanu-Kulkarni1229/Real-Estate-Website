@@ -50,6 +50,15 @@ export const commercialUseOptions = [
   { value: 'other', label: 'Other' }
 ]
 
+export function createEmptyUnitConfiguration() {
+  return {
+    unitLabel: '',
+    bhk: '',
+    sizeSqFt: '',
+    price: ''
+  }
+}
+
 export function getInitialForm(user) {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
 
@@ -59,6 +68,8 @@ export function getInitialForm(user) {
     propertyType: 'Residential',
     listingType: 'sell',
     price: '',
+    hasMultipleUnits: false,
+    unitConfigurations: [createEmptyUnitConfiguration()],
     negotiable: false,
     address: '',
     city: '',

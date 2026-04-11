@@ -5,6 +5,7 @@ import HomePage from './pages/Home/HomePage'
 import AuthPage from './pages/Auth/AuthPage'
 import PropertyListingPage from './pages/PropertyListing/PropertyListingPage'
 import AdminPropertiesPage from './pages/Admin/AdminPropertiesPage'
+import AdminPropertyDetailsPage from './pages/Admin/AdminPropertyDetailsPage'
 import PropertyDetailsPage from './pages/PropertyDetails/PropertyDetailsPage'
 import SearchResultsPage from './pages/Search/SearchResultsPage'
 import UserDashboardPage from './pages/Dashboard/UserDashboardPage'
@@ -21,7 +22,7 @@ const App = () => {
           <Route
             path="/post-property"
             element={(
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['owner', 'agent', 'builder', 'admin']}>
                 <PropertyListingPage />
               </ProtectedRoute>
             )}
@@ -29,7 +30,7 @@ const App = () => {
           <Route
             path="/dashboard"
             element={(
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['owner', 'agent', 'builder', 'admin']}>
                 <UserDashboardPage />
               </ProtectedRoute>
             )}
@@ -39,6 +40,14 @@ const App = () => {
             element={(
               <ProtectedRoute allowedRoles={["admin"]}>
                 <AdminPropertiesPage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/admin/properties/:propertyId"
+            element={(
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <AdminPropertyDetailsPage />
               </ProtectedRoute>
             )}
           />

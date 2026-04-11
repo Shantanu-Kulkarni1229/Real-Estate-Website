@@ -14,10 +14,10 @@ const Hero = ({ onSearch }) => {
 
         <div className="absolute inset-0 mx-auto flex h-full max-w-7xl items-center px-4 lg:px-8">
           <div className="max-w-2xl text-white">
-            <h1 className="text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
+            <h1 className="js-hero-heading text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
               Find Your Perfect Property
             </h1>
-            <p className="mt-3 text-sm text-white/90 sm:text-base">
+            <p className="js-hero-subheading mt-3 text-sm text-white/90 sm:text-base">
               Buy, rent, or list properties across India with confidence on CityPloter.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">

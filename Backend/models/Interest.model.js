@@ -5,7 +5,6 @@ const interestSchema = new mongoose.Schema(
     buyerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Buyer ID is required'],
       index: true
     },
 
@@ -30,11 +29,13 @@ const interestSchema = new mongoose.Schema(
 
     email: {
       type: String,
-      required: [true, 'Email is required'],
-      match: [
-        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-        'Please provide a valid email'
-      ]
+      validate: {
+        validator: function validateEmail(value) {
+          if (!value) return true;
+          return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(value);
+        },
+        message: 'Please provide a valid email'
+      }
     },
 
     mobile: {
@@ -60,6 +61,13 @@ const interestSchema = new mongoose.Schema(
       index: true
     },
 
+    sourceType: {
+      type: String,
+      enum: ['authenticated', 'public'],
+      default: 'public',
+      index: true
+    },
+
     assignedToAdmin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
@@ -71,7 +79,21 @@ const interestSchema = new mongoose.Schema(
   }
 );
 
-interestSchema.index({ buyerId: 1, propertyId: 1 }, { unique: true });
+interestSchema.index(
+  { buyerId: 1, propertyId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { buyerId: { $exists: true } }
+  }
+);
+
+interestSchema.index(
+  { propertyId: 1, mobile: 1, sourceType: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { sourceType: 'public' }
+  }
+);
 
 interestSchema.index({ createdAt: -1 });
 interestSchema.index({ assignedToAdmin: 1 });

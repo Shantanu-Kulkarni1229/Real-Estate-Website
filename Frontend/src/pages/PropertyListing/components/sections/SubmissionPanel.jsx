@@ -52,7 +52,7 @@ const SubmissionPanel = ({ form, imageCount, isSubmitting, onReset, roleLabel })
       </button>
 
       <p className="mt-6 text-xs leading-5 text-slate-400">
-        Only seller and admin accounts can post properties. If you are using a different role, switch account before submitting.
+        Owner, agent, builder, and admin accounts can publish listings. Switch to a commercial account if posting is blocked.
       </p>
     </aside>
   )

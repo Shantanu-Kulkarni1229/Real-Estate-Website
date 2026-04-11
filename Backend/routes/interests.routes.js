@@ -10,8 +10,8 @@ const {
 
 const router = express.Router();
 
-router.post('/', authenticate, authorize('buyer', 'renter'), createInterest);
-router.get('/my-interests', authenticate, authorize('buyer', 'renter'), getMyInterests);
+router.post('/', createInterest);
+router.get('/my-interests', authenticate, getMyInterests);
 
 router.get('/', authenticate, authorize('admin'), getAllLeads);
 router.patch('/:leadId/status', authenticate, authorize('admin'), updateLeadStatus);

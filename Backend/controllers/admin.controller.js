@@ -2,11 +2,14 @@ const mongoose = require('mongoose');
 const User = require('../models/User.model');
 const Property = require('../models/Property.model');
 const Interest = require('../models/Interest.model');
+const SubscriptionFeeConfig = require('../models/SubscriptionFeeConfig.model');
 const {
   sendEmailNotification,
   sendBulkEmailNotifications,
   buildPropertyReviewTemplate
 } = require('../utils/notification.utils');
+
+const SUBSCRIPTION_ROLES = ['owner', 'agent', 'builder'];
 
 function parsePagination(query = {}) {
   const page = Math.max(parseInt(query.page || '1', 10), 1);
@@ -274,10 +277,11 @@ async function verifySeller(req, res) {
       });
     }
 
-    if (seller.role !== 'seller') {
+    const eligibleRoles = ['seller', 'owner', 'agent', 'builder'];
+    if (!eligibleRoles.includes(seller.role)) {
       return res.status(400).json({
         success: false,
-        message: 'Only seller accounts can be verified using this endpoint'
+        message: 'Only owner, agent, builder, or seller accounts can be verified using this endpoint'
       });
     }
 
@@ -286,7 +290,7 @@ async function verifySeller(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: `Seller ${isVerified ? 'verified' : 'unverified'} successfully`,
+      message: `Commercial account ${isVerified ? 'verified' : 'unverified'} successfully`,
       data: seller
     });
   } catch (error) {
@@ -519,6 +523,102 @@ async function getDashboardStats(req, res) {
   }
 }
 
+async function getSubscriptionFees(req, res) {
+  try {
+    let config = await SubscriptionFeeConfig.findOne({ key: 'default' }).lean();
+
+    if (!config) {
+      const created = await SubscriptionFeeConfig.create({ key: 'default' });
+      config = created.toObject();
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        currency: config.currency || 'INR',
+        fees: {
+          owner: Number(config?.fees?.owner || 0),
+          agent: Number(config?.fees?.agent || 0),
+          builder: Number(config?.fees?.builder || 0)
+        },
+        updatedAt: config.updatedAt
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch subscription fee configuration'
+    });
+  }
+}
+
+async function updateSubscriptionFees(req, res) {
+  const bodyFees = req.body && typeof req.body === 'object'
+    ? (req.body.fees && typeof req.body.fees === 'object' ? req.body.fees : req.body)
+    : {};
+
+  const updates = {};
+  for (const role of SUBSCRIPTION_ROLES) {
+    if (!Object.prototype.hasOwnProperty.call(bodyFees, role)) {
+      continue;
+    }
+
+    const numericValue = Number(bodyFees[role]);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid fee for ${role}. Please provide a non-negative number`
+      });
+    }
+
+    updates[`fees.${role}`] = numericValue;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'No valid subscription fee values were provided'
+    });
+  }
+
+  try {
+    const config = await SubscriptionFeeConfig.findOneAndUpdate(
+      { key: 'default' },
+      {
+        $set: {
+          ...updates,
+          updatedBy: req.user.userId
+        }
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+        runValidators: true
+      }
+    ).lean();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Subscription fees updated successfully',
+      data: {
+        currency: config.currency || 'INR',
+        fees: {
+          owner: Number(config?.fees?.owner || 0),
+          agent: Number(config?.fees?.agent || 0),
+          builder: Number(config?.fees?.builder || 0)
+        },
+        updatedAt: config.updatedAt
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update subscription fee configuration'
+    });
+  }
+}
+
 module.exports = {
   parsePagination,
   buildPropertyReviewFilters,
@@ -530,5 +630,7 @@ module.exports = {
   verifySeller,
   assignLead,
   sendLeadEmail,
-  deleteLead
+  deleteLead,
+  getSubscriptionFees,
+  updateSubscriptionFees
 };

@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Navbar from '../Home/components/Navbar'
 import { useAuth } from '../../context/AuthContext'
 import { apiRequest } from '../../lib/api'
 import LoadingScreen from '../../components/LoadingScreen'
 import { getPropertySpecCategory } from '../../constants/propertyTypes'
 
+function formatPriceValue(value) {
+  if (value === undefined || value === null || value === '') {
+    return 'Price on request'
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return String(value)
+  }
+
+  return `INR ${parsed.toLocaleString('en-IN')}`
+}
+
 function formatPrice(property) {
   if (!property) return 'Price on request'
-  if (typeof property.price === 'number') return `INR ${Number(property.price).toLocaleString('en-IN')}`
-  return property.price || 'Price on request'
+  return formatPriceValue(property.price)
 }
 
 function getSpecRows(property) {
@@ -22,7 +34,7 @@ function getSpecRows(property) {
   if (specCategory === 'plot' && property.specifications.plot) {
     const plot = property.specifications.plot
     return [
-      ['Plot Area', plot.plotArea],
+      ['Plot Area', plot.plotArea ? `${plot.plotArea} sq ft` : ''],
       ['Length', plot.length],
       ['Width', plot.width],
       ['Boundary Wall', plot.boundaryWall ? 'Yes' : 'No'],
@@ -47,12 +59,12 @@ function getSpecRows(property) {
       ['BHK', residential.bhk],
       ['Bathrooms', residential.bathrooms],
       ['Balconies', residential.balconies],
-      ['Super Built-up Area', residential.superBuiltUpArea],
-      ['Carpet Area', residential.carpetArea],
+      ['Super Built-up Area', residential.superBuiltUpArea ? `${residential.superBuiltUpArea} sq ft` : ''],
+      ['Carpet Area', residential.carpetArea ? `${residential.carpetArea} sq ft` : ''],
       ['Furnishing', residential.furnishing],
       ['Floor Number', residential.floorNumber],
       ['Total Floors', residential.totalFloors],
-      ['Property Age', residential.propertyAge],
+      ['Property Age', residential.propertyAge ? `${residential.propertyAge} year(s)` : ''],
       ['Facing', residential.facing],
       ['Parking Available', residential.parking?.available ? 'Yes' : 'No'],
       ['Parking Type', residential.parking?.type]
@@ -62,14 +74,26 @@ function getSpecRows(property) {
   return []
 }
 
+function getAddressLine(property) {
+  return [
+    property?.address,
+    property?.locality,
+    property?.city,
+    property?.state,
+    property?.pincode,
+  ]
+    .filter(Boolean)
+    .join(', ')
+}
+
 const PropertyDetailsPage = () => {
   const { propertyId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isAuthenticated, token, user } = useAuth()
 
   const [property, setProperty] = useState(null)
   const [activeImage, setActiveImage] = useState('')
-  const [message, setMessage] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
   const [isSubmittingLead, setIsSubmittingLead] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -140,25 +164,54 @@ const PropertyDetailsPage = () => {
     return property.amenities.filter(Boolean)
   }, [property])
 
+  const unitConfigurations = useMemo(() => {
+    if (!Array.isArray(property?.unitConfigurations)) {
+      return []
+    }
+
+    return property.unitConfigurations
+      .filter((unit) => unit && unit.price !== undefined && unit.price !== null)
+  }, [property])
+
+  const addressLine = useMemo(() => getAddressLine(property), [property])
+
+  const mapsSrc = useMemo(() => {
+    if (!addressLine) {
+      return ''
+    }
+
+    return `https://www.google.com/maps?q=${encodeURIComponent(addressLine)}&output=embed`
+  }, [addressLine])
+
+  const isDirectContactEnabled = Boolean(property?.directContactEnabled && property?.publicContactNumber)
+
+  const handleLoginForCallback = () => {
+    const redirect = encodeURIComponent(`${location.pathname}${location.search}`)
+    navigate(`/auth?redirect=${redirect}`)
+  }
+
   const handleGetConnected = async () => {
     if (!property) {
       return
     }
 
-    if (!isAuthenticated) {
-      window.alert('Please login to get connected with this property.')
-      navigate(`/auth?redirect=${encodeURIComponent(`/properties/${property._id}`)}`)
+    if (!isAuthenticated || !token) {
+      handleLoginForCallback()
       return
     }
 
     const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
-    const contactName = fullName || user?.firstName || user?.email || 'Buyer'
-    const contactEmail = user?.email
-    const contactPhone = user?.phone
-    const whatsapp = user?.whatsappNumber || user?.phone
+    const mobileNumber = String(user?.phone || '').replace(/\D/g, '').slice(0, 10)
+    const whatsappNumber = String(user?.whatsappNumber || user?.phone || '').replace(/\D/g, '').slice(0, 10)
+    const email = String(user?.email || '').trim()
 
-    if (!contactEmail || !contactPhone) {
-      setStatusMessage('Please update your profile with both email and phone number to get connected.')
+    if (!fullName) {
+      setStatusMessage('Please update your profile name before requesting callback.')
+      return
+    }
+
+    if (!/^[0-9]{10}$/.test(mobileNumber)) {
+      setStatusMessage('Please update a valid 10-digit phone number in your profile.')
       return
     }
 
@@ -170,19 +223,18 @@ const PropertyDetailsPage = () => {
         method: 'POST',
         token,
         body: {
-          name: contactName,
-          mobileNumber: contactPhone,
-          email: contactEmail,
-          whatsappNumber: whatsapp,
-          message: message || `Interested in ${property.title}`,
+          name: fullName,
+          mobileNumber,
+          email: email || undefined,
+          whatsappNumber: /^[0-9]{10}$/.test(whatsappNumber) ? whatsappNumber : mobileNumber,
+          message: `Interested in ${property.title} (${property.listingType})`,
           propertyId: property._id
         }
       })
 
-      setStatusMessage('Interest submitted. Admin will connect you manually with this property owner.')
-      setMessage('')
+      setStatusMessage('Your details were shared successfully. Seller/admin will contact you soon.')
     } catch (leadError) {
-      setStatusMessage(leadError.message || 'Could not submit your interest')
+      setStatusMessage(leadError.message || 'Could not submit your request')
     } finally {
       setIsSubmittingLead(false)
     }
@@ -214,20 +266,35 @@ const PropertyDetailsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-(--color-surface)">
+    <div className="min-h-screen bg-linear-to-b from-[#f8fbff] to-[#eef4ff]">
       <Navbar />
 
       <section className="mx-auto w-[92%] max-w-7xl py-8">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] lg:p-7">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-(--color-primary)/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 left-20 h-44 w-44 rounded-full bg-(--color-secondary-bg) blur-3xl" />
+
+          <div className="relative flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-(--color-secondary-text)">Verified Listing</p>
               <h1 className="mt-2 text-3xl font-bold text-slate-900 lg:text-4xl">{property.title}</h1>
-              <p className="mt-2 text-sm text-slate-600">{property.locality || 'Locality not listed'}, {property.city}, {property.state}</p>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">{addressLine || 'Address not available'}</p>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white">
+                  {property.listingType === 'rent' ? 'For Rent' : 'For Sale'}
+                </span>
+                <span className="rounded-full bg-(--color-secondary-bg) px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-(--color-primary)">
+                  {property.propertyType}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700">
+                  {unitConfigurations.length > 0 ? `${unitConfigurations.length} Unit Options` : 'Single Unit'}
+                </span>
+              </div>
             </div>
 
-            <div className="rounded-2xl bg-(--color-secondary-bg) px-4 py-3 text-right">
-              <p className="text-xs uppercase tracking-wide text-(--color-secondary-text)">Price</p>
+            <div className="rounded-2xl bg-(--color-secondary-bg) px-4 py-3 text-right shadow-sm">
+              <p className="text-xs uppercase tracking-wide text-(--color-secondary-text)">{unitConfigurations.length > 0 ? 'Starting from' : 'Price'}</p>
               <p className="mt-1 text-2xl font-semibold text-(--color-primary)">{formatPrice(property)}</p>
             </div>
           </div>
@@ -265,6 +332,34 @@ const PropertyDetailsPage = () => {
             <h2 className="text-xl font-semibold text-slate-900">Description</h2>
             <p className="mt-3 text-sm leading-7 text-slate-700">{property.description || 'No description provided.'}</p>
           </div>
+
+          {unitConfigurations.length > 0 ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+              <h2 className="text-xl font-semibold text-slate-900">Unit Options and Pricing</h2>
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full border-separate border-spacing-y-2 text-sm text-slate-700">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                      <th className="px-3 py-1">Unit</th>
+                      <th className="px-3 py-1">BHK</th>
+                      <th className="px-3 py-1">Size</th>
+                      <th className="px-3 py-1">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unitConfigurations.map((unit, index) => (
+                      <tr key={`${unit.unitLabel || 'unit'}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50">
+                        <td className="rounded-l-xl px-3 py-2.5 font-semibold text-slate-900">{unit.unitLabel || `Unit ${index + 1}`}</td>
+                        <td className="px-3 py-2.5">{unit.bhk ? `${unit.bhk} BHK` : '-'}</td>
+                        <td className="px-3 py-2.5">{unit.sizeSqFt ? `${unit.sizeSqFt} sq ft` : '-'}</td>
+                        <td className="rounded-r-xl px-3 py-2.5 font-semibold text-(--color-primary)">{formatPriceValue(unit.price)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
             <h2 className="text-xl font-semibold text-slate-900">Specifications</h2>
@@ -327,40 +422,85 @@ const PropertyDetailsPage = () => {
 
         <aside className="space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
-            <h2 className="text-xl font-semibold text-slate-900">Location</h2>
-            <p className="mt-3 text-sm text-slate-700">{property.address}</p>
-            <p className="text-sm text-slate-700">{property.locality || 'Locality not listed'}, {property.city}</p>
-            <p className="text-sm text-slate-700">{property.state} - {property.pincode}</p>
-            {property.landmark ? <p className="mt-1 text-sm text-slate-700">Landmark: {property.landmark}</p> : null}
+            <h2 className="text-xl font-semibold text-slate-900">Location and Map</h2>
+            <p className="mt-3 text-sm text-slate-700">{addressLine || 'Address not available'}</p>
+
+            {mapsSrc ? (
+              <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+                <iframe
+                  title="Property location map"
+                  src={mapsSrc}
+                  className="h-64 w-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            ) : null}
 
             <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
               <p className="font-semibold text-slate-900">Listing Info</p>
               <p className="mt-2 capitalize">Type: {property.propertyType}</p>
               <p className="capitalize">Purpose: {property.listingType}</p>
+              <p>Owner Name: {property.ownerName || 'N/A'}</p>
+              <p>Ownership: {property.ownershipType || 'N/A'}</p>
+              <p>Available From: {property.availableFrom ? new Date(property.availableFrom).toLocaleDateString() : 'Immediate / Not specified'}</p>
               <p>Views: {property.viewsCount ?? 0}</p>
               <p>Posted: {property.createdAt ? new Date(property.createdAt).toLocaleDateString() : 'N/A'}</p>
             </div>
 
-            <div className="mt-5">
-              <label className="text-sm font-medium text-slate-700">Message for CityPloter</label>
-              <textarea
-                rows="4"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="Share your preference, budget flexibility, or move-in timeline"
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
-              />
+            {isDirectContactEnabled && isAuthenticated ? (
+              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Direct Contact Available</p>
+                <p className="mt-2 text-sm text-slate-700">This listing is managed by a paid agent. You can directly contact now.</p>
+                <p className="mt-2 text-base font-semibold text-slate-900">{property.publicContactNumber}</p>
+                <div className="mt-3 flex gap-2">
+                  <a
+                    href={`tel:${property.publicContactNumber}`}
+                    className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  >
+                    Call Now
+                  </a>
+                  <a
+                    href={`https://wa.me/91${property.publicContactNumber}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    WhatsApp
+                  </a>
+                </div>
+              </div>
+            ) : null}
 
-              <button
-                type="button"
-                onClick={handleGetConnected}
-                disabled={isSubmittingLead}
-                className="mt-3 w-full rounded-2xl bg-(--color-cta-orange) px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isAuthenticated ? 'Get Connected' : 'Login to Get Connected'}
-              </button>
+            <div className="mt-5 rounded-2xl border border-(--color-secondary-bg) bg-(--color-secondary-bg) p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-(--color-primary)">Instant Callback</p>
 
-              {statusMessage ? <p className="mt-2 text-sm text-slate-600">{statusMessage}</p> : null}
+              {!isAuthenticated ? (
+                <>
+                  <p className="mt-2 text-sm text-slate-700">Please login first. Your profile details will be shared directly, so no form is needed.</p>
+                  <button
+                    type="button"
+                    onClick={handleLoginForCallback}
+                    className="mt-3 w-full rounded-2xl bg-(--color-primary) px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95"
+                  >
+                    Login to Get Connected
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm text-slate-700">Click once and we will share your account details with seller/admin instantly.</p>
+                  <button
+                    type="button"
+                    onClick={handleGetConnected}
+                    disabled={isSubmittingLead}
+                    className="mt-3 w-full rounded-2xl bg-(--color-cta-orange) px-4 py-3 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSubmittingLead ? 'Submitting...' : 'Get Connected Now'}
+                  </button>
+                </>
+              )}
+
+              {statusMessage ? <p className="mt-2 text-sm text-slate-700">{statusMessage}</p> : null}
             </div>
           </div>
         </aside>
