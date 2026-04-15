@@ -4,7 +4,8 @@ import { listingTypeOptions, propertyTypeOptions } from '../../propertyListing.c
 const inputClassName = 'w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition duration-200 placeholder:text-slate-400 focus:border-(--color-primary) focus:bg-white focus:ring-2 focus:ring-(--color-secondary-bg)'
 
 const BasicDetailsSection = ({ form, onChange, onUnitChange, onUnitAdd, onUnitRemove }) => {
-  const showUnitConfigurations = Boolean(form.hasMultipleUnits)
+  const isRentListing = form.listingType === 'rent'
+  const showUnitConfigurations = Boolean(form.hasMultipleUnits && !isRentListing)
 
   return (
     <FormSection
@@ -47,20 +48,55 @@ const BasicDetailsSection = ({ form, onChange, onUnitChange, onUnitAdd, onUnitRe
             ))}
           </select>
         </FormField>
-        <FormField label={showUnitConfigurations ? 'Base price (auto from units)' : 'Price'} hint="Use numeric value only. The backend stores it as a number.">
+        <FormField
+          label={isRentListing ? 'Monthly rent' : (showUnitConfigurations ? 'Base price (auto from units)' : 'Sale price')}
+          hint={isRentListing ? 'Enter monthly rent amount in INR.' : 'Use numeric value only. The backend stores it as a number.'}
+        >
           <input
             type="number"
             min="0"
-            value={form.price}
-            onChange={(event) => onChange('price', event.target.value)}
+            value={isRentListing ? form.rentMonthlyAmount : form.price}
+            onChange={(event) => onChange(isRentListing ? 'rentMonthlyAmount' : 'price', event.target.value)}
             className={inputClassName}
-            placeholder="7500000"
+            placeholder={isRentListing ? '25000' : '7500000'}
             readOnly={showUnitConfigurations}
           />
         </FormField>
+
+        {isRentListing ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-slate-800">Security deposit required</p>
+                <p className="text-xs text-slate-500">Enable if tenant must pay a refundable deposit.</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={Boolean(form.rentDepositRequired)}
+                onChange={(event) => onChange('rentDepositRequired', event.target.checked)}
+                className="h-5 w-5 rounded border-slate-300 text-(--color-primary) focus:ring-(--color-secondary-bg)"
+              />
+            </div>
+
+            {form.rentDepositRequired ? (
+              <div className="mt-3">
+                <input
+                  type="number"
+                  min="0"
+                  value={form.rentSecurityDeposit}
+                  onChange={(event) => onChange('rentSecurityDeposit', event.target.value)}
+                  className={inputClassName}
+                  placeholder="50000"
+                />
+                <p className="mt-1 text-xs text-slate-500">Security deposit amount in INR</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      <div className="mt-5 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      {!isRentListing ? (
+        <div className="mt-5 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-900">Multiple unit pricing</p>
@@ -132,7 +168,8 @@ const BasicDetailsSection = ({ form, onChange, onUnitChange, onUnitAdd, onUnitRe
             </button>
           </div>
         ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="mt-5 grid gap-5">
         <FormField label="Description">

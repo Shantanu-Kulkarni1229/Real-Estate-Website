@@ -244,6 +244,110 @@ async function getMyInterests(req, res) {
   }
 }
 
+async function getMyLeads(req, res) {
+  try {
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+
+    const filters = {
+      sellerId: req.user.userId
+    };
+
+    if (req.query.status && ['new', 'contacted', 'closed'].includes(req.query.status)) {
+      filters.status = req.query.status;
+    }
+
+    if (req.query.propertyId && mongoose.Types.ObjectId.isValid(req.query.propertyId)) {
+      filters.propertyId = req.query.propertyId;
+    }
+
+    const [items, total] = await Promise.all([
+      Interest.find(filters)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate('buyerId', 'firstName lastName email phone whatsappNumber role')
+        .populate('propertyId', 'title propertyType listingType price city status')
+        .lean(),
+      Interest.countDocuments(filters)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch your leads'
+    });
+  }
+}
+
+async function updateMyLeadStatus(req, res) {
+  const { leadId } = req.params;
+  const { status } = req.body || {};
+
+  if (!mongoose.Types.ObjectId.isValid(leadId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid lead ID'
+    });
+  }
+
+  if (!status || !['new', 'contacted', 'closed'].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Status must be one of: new, contacted, closed'
+    });
+  }
+
+  try {
+    const lead = await Interest.findById(leadId);
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    const isAdmin = String(req.user.role || '').toLowerCase() === 'admin';
+    const isOwnerLead = String(lead.sellerId) === String(req.user.userId);
+
+    if (!isAdmin && !isOwnerLead) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only update status for your own leads'
+      });
+    }
+
+    lead.status = status;
+    await lead.save();
+
+    const updatedLead = await Interest.findById(leadId)
+      .populate('buyerId', 'firstName lastName email phone whatsappNumber role')
+      .populate('propertyId', 'title propertyType listingType price city status')
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lead status updated successfully',
+      data: updatedLead
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update lead status'
+    });
+  }
+}
+
 async function getAllLeads(req, res) {
   try {
     const page = Math.max(parseInt(req.query.page || '1', 10), 1);
@@ -338,7 +442,9 @@ async function updateLeadStatus(req, res) {
 module.exports = {
   createInterest,
   getMyInterests,
+  getMyLeads,
   getAllLeads,
+  updateMyLeadStatus,
   updateLeadStatus,
   buildLeadFilters
 };

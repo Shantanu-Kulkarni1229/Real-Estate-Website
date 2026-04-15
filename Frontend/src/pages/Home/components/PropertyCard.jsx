@@ -67,6 +67,16 @@ function formatPrice(property) {
     return 'Price on request'
   }
 
+  if (property.listingType === 'rent') {
+    const monthlyRent = property?.rentDetails?.monthlyRent ?? property.price
+    const compactRent = toCompactIndianPrice(monthlyRent)
+    if (compactRent) {
+      return `${compactRent}/month`
+    }
+
+    return monthlyRent ? `${monthlyRent}/month` : 'Rent on request'
+  }
+
   if (property.priceLabel) {
     const compactLabel = toCompactIndianPrice(property.priceLabel)
     return compactLabel || property.priceLabel

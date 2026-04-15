@@ -8,7 +8,7 @@ const LocationSection = ({ form, onChange }) => {
   return (
     <FormSection
       title="Location details"
-      description="Add the full address and geo coordinates if you have them."
+      description="Add the full address and share a live Google Maps location link."
     >
       <div className="grid gap-5 md:grid-cols-2">
         <FormField label="Address">
@@ -67,24 +67,13 @@ const LocationSection = ({ form, onChange }) => {
             placeholder="Near Metro Station"
           />
         </FormField>
-        <FormField label="Latitude" hint="Optional, useful for map integrations.">
+        <FormField label="Google Maps Live Location Link" hint="Paste the Google Maps share/live location URL for this property.">
           <input
-            type="number"
-            step="any"
-            value={form.latitude}
-            onChange={(event) => onChange('latitude', event.target.value)}
+            type="url"
+            value={form.googleMapsLink}
+            onChange={(event) => onChange('googleMapsLink', event.target.value)}
             className={inputClassName}
-            placeholder="19.0760"
-          />
-        </FormField>
-        <FormField label="Longitude" hint="Optional, useful for map integrations.">
-          <input
-            type="number"
-            step="any"
-            value={form.longitude}
-            onChange={(event) => onChange('longitude', event.target.value)}
-            className={inputClassName}
-            placeholder="72.8777"
+            placeholder="https://maps.google.com/..."
           />
         </FormField>
       </div>

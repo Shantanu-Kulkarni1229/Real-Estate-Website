@@ -12,6 +12,11 @@ function formatPrice(property) {
   return property.price || 'Price on request'
 }
 
+function formatPossessionStatus(status) {
+  if (status === 'under_construction') return 'Under Construction'
+  return 'Ready To Move'
+}
+
 function getSpecRows(property) {
   if (!property?.specifications) {
     return []
@@ -372,18 +377,7 @@ const AdminPropertyDetailsPage = () => {
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
-            <h2 className="text-xl font-semibold text-slate-900">Videos and Virtual Tour</h2>
-
-            {property.virtualTourUrl ? (
-              <a
-                href={property.virtualTourUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-4 inline-flex rounded-xl bg-(--color-primary) px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
-              >
-                Open Virtual Tour
-              </a>
-            ) : null}
+            <h2 className="text-xl font-semibold text-slate-900">Videos</h2>
 
             <div className="mt-4 space-y-3">
               {videoList.length > 0 ? videoList.map((videoUrl) => (
@@ -419,6 +413,10 @@ const AdminPropertyDetailsPage = () => {
               <p className="font-semibold text-slate-900">Listing Info</p>
               <p className="mt-2 capitalize">Type: {property.propertyType}</p>
               <p className="capitalize">Purpose: {property.listingType}</p>
+              <p>Possession Status: {formatPossessionStatus(property.possessionStatus)}</p>
+              {property.possessionStatus === 'under_construction' ? (
+                <p>Expected Possession Date: {property.possessionDate ? new Date(property.possessionDate).toLocaleDateString() : 'N/A'}</p>
+              ) : null}
               <p>Price: {formatPrice(property)}</p>
               <p>Views: {property.viewsCount ?? 0}</p>
               <p>Posted: {property.createdAt ? new Date(property.createdAt).toLocaleDateString() : 'N/A'}</p>

@@ -9,6 +9,7 @@ import AdminPropertyDetailsPage from './pages/Admin/AdminPropertyDetailsPage'
 import PropertyDetailsPage from './pages/PropertyDetails/PropertyDetailsPage'
 import SearchResultsPage from './pages/Search/SearchResultsPage'
 import UserDashboardPage from './pages/Dashboard/UserDashboardPage'
+import CommercialCRMPage from './pages/CRM/CommercialCRMPage'
 
 const App = () => {
   return (
@@ -32,6 +33,14 @@ const App = () => {
             element={(
               <ProtectedRoute allowedRoles={['owner', 'agent', 'builder', 'admin']}>
                 <UserDashboardPage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/crm"
+            element={(
+              <ProtectedRoute allowedRoles={['owner', 'agent', 'builder', 'seller', 'admin']}>
+                <CommercialCRMPage />
               </ProtectedRoute>
             )}
           />

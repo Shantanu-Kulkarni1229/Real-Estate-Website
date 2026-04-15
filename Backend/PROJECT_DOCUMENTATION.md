@@ -101,7 +101,7 @@ Property key fields:
 - basic: `title`, `description`, `propertyType`, `listingType`, `price`, `negotiable`
 - location: `address`, `city`, `state`, `pincode`, `locality`, `landmark`, `latitude`, `longitude`
 - specs: `specifications.residential`, `specifications.plot`, `specifications.commercial`
-- media: `images`, `videos`, `virtualTourUrl`
+- media: `images`, `videos`
 - ownership: `ownerName`, `contactNumber`, `ownershipType`, `availableFrom`
 - metadata: `createdBy`, `sellerId`, `status`, `verified`, `viewsCount`
 

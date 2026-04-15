@@ -10,6 +10,19 @@ function parsePositiveNumber(value) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function parseDate(value) {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function parseBoolean(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
 function normalizeCityName(value) {
   if (!value) {
     return value;
@@ -66,6 +79,27 @@ function getBasePrice(explicitPrice, unitConfigurations) {
   return Math.min(...unitPrices);
 }
 
+function normalizeRentDetails(body, listingType, fallbackPrice) {
+  if (listingType !== 'rent') {
+    return undefined;
+  }
+
+  const rawRentDetails = body?.rentDetails || {};
+  const monthlyRent = parsePositiveNumber(
+    rawRentDetails.monthlyRent ?? body?.monthlyRent ?? fallbackPrice
+  );
+  const depositRequired = parseBoolean(rawRentDetails.depositRequired ?? body?.depositRequired);
+  const securityDeposit = parsePositiveNumber(
+    rawRentDetails.securityDeposit ?? body?.securityDeposit
+  );
+
+  return {
+    monthlyRent,
+    depositRequired,
+    securityDeposit: depositRequired ? securityDeposit : undefined
+  };
+}
+
 function isPaidAgent(user) {
   if (!user) {
     return false;
@@ -115,6 +149,11 @@ function getCreatePayload(body, user) {
   const sellerId = body.createdBy || user.userId;
   const unitConfigurations = normalizeUnitConfigurations(body.unitConfigurations);
   const basePrice = getBasePrice(body.price, unitConfigurations);
+  const listingType = body.listingType;
+  const rentDetails = normalizeRentDetails(body, listingType, basePrice);
+  const normalizedPrice = listingType === 'rent'
+    ? rentDetails?.monthlyRent
+    : basePrice;
 
   return {
     createdBy: sellerId,
@@ -122,23 +161,26 @@ function getCreatePayload(body, user) {
     title: body.title,
     description: body.description,
     propertyType: body.propertyType,
-    listingType: body.listingType,
-    price: basePrice,
+    listingType,
+    price: normalizedPrice,
+    rentDetails,
     unitConfigurations,
     negotiable: body.negotiable,
+    possessionStatus: body.possessionStatus,
+    possessionDate: parseDate(body.possessionDate),
     address: body.address,
     city: body.city,
     state: body.state,
     pincode: body.pincode,
     locality: body.locality,
     landmark: body.landmark,
+    googleMapsLink: body.googleMapsLink,
     latitude: body.latitude,
     longitude: body.longitude,
     specifications: body.specifications,
     amenities: body.amenities,
     images: body.images,
     videos: body.videos,
-    virtualTourUrl: body.virtualTourUrl,
     ownerName: body.ownerName,
     contactNumber: body.contactNumber,
     ownershipType: body.ownershipType,
@@ -153,21 +195,27 @@ function getUpdatePayload(body, isAdmin) {
     'propertyType',
     'listingType',
     'price',
+    'rentDetails',
+    'monthlyRent',
+    'depositRequired',
+    'securityDeposit',
     'unitConfigurations',
     'negotiable',
+    'possessionStatus',
+    'possessionDate',
     'address',
     'city',
     'state',
     'pincode',
     'locality',
     'landmark',
+    'googleMapsLink',
     'latitude',
     'longitude',
     'specifications',
     'amenities',
     'images',
     'videos',
-    'virtualTourUrl',
     'ownerName',
     'contactNumber',
     'ownershipType',
@@ -183,6 +231,10 @@ function getUpdatePayload(body, isAdmin) {
     if (Object.prototype.hasOwnProperty.call(body, field)) {
       updates[field] = body[field];
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'possessionDate')) {
+    updates.possessionDate = parseDate(updates.possessionDate);
   }
 
   if (Object.prototype.hasOwnProperty.call(updates, 'unitConfigurations')) {
@@ -246,14 +298,29 @@ async function createProperty(req, res) {
   ];
 
   const normalizedUnitConfigurations = normalizeUnitConfigurations(req.body?.unitConfigurations);
+  const rentDetails = normalizeRentDetails(req.body || {}, req.body?.listingType, req.body?.price);
 
   const missing = required.filter((field) => {
     if (field === 'price' && normalizedUnitConfigurations.length > 0) {
       return false;
     }
 
+    if (field === 'price' && req.body?.listingType === 'rent') {
+      return false;
+    }
+
     return !req.body || req.body[field] === undefined || req.body[field] === null || req.body[field] === '';
   });
+
+  if (req.body?.listingType === 'rent') {
+    if (rentDetails?.monthlyRent === undefined) {
+      missing.push('monthlyRent');
+    }
+
+    if (rentDetails?.depositRequired && rentDetails.securityDeposit === undefined) {
+      missing.push('securityDeposit');
+    }
+  }
 
   if (normalizedUnitConfigurations.length > 100) {
     return res.status(400).json({
@@ -336,6 +403,62 @@ async function getProperties(req, res) {
   }
 }
 
+async function getMyListings(req, res) {
+  try {
+    const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+
+    const filters = {
+      createdBy: req.user.userId
+    };
+
+    if (req.query.status && ['pending', 'approved', 'rejected'].includes(req.query.status)) {
+      filters.status = req.query.status;
+    }
+
+    if (req.query.listingType) {
+      filters.listingType = req.query.listingType;
+    }
+
+    if (req.query.propertyType) {
+      filters.propertyType = req.query.propertyType;
+    }
+
+    if (req.query.search) {
+      filters.$or = [
+        { title: { $regex: req.query.search, $options: 'i' } },
+        { locality: { $regex: req.query.search, $options: 'i' } },
+        { city: { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      Property.find(filters)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Property.countDocuments(filters)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch your listings'
+    });
+  }
+}
+
 async function getPropertyById(req, res) {
   const { propertyId } = req.params;
 
@@ -406,6 +529,32 @@ async function updateProperty(req, res) {
     }
 
     const updates = getUpdatePayload(req.body || {}, req.user.role === 'admin');
+    const nextListingType = updates.listingType || property.listingType;
+    const priceForRent = Object.prototype.hasOwnProperty.call(updates, 'price')
+      ? updates.price
+      : property.price;
+    const normalizedRentDetails = normalizeRentDetails(req.body || {}, nextListingType, priceForRent);
+
+    if (nextListingType === 'rent') {
+      if (normalizedRentDetails?.monthlyRent === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'monthlyRent is required for rent listings'
+        });
+      }
+
+      if (normalizedRentDetails?.depositRequired && normalizedRentDetails.securityDeposit === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'securityDeposit is required when deposit is marked as required'
+        });
+      }
+
+      updates.rentDetails = normalizedRentDetails;
+      updates.price = normalizedRentDetails.monthlyRent;
+    } else {
+      updates.rentDetails = undefined;
+    }
 
     const updatedProperty = await Property.findByIdAndUpdate(
       propertyId,
@@ -469,6 +618,7 @@ async function deleteProperty(req, res) {
 module.exports = {
   createProperty,
   getProperties,
+  getMyListings,
   getPropertyById,
   updateProperty,
   deleteProperty,

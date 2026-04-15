@@ -30,6 +30,18 @@ const subscriptionFeeConfigSchema = new mongoose.Schema(
         default: 2999
       }
     },
+    promotion: {
+      perDayAmount: {
+        type: Number,
+        min: 0,
+        default: 1500
+      },
+      currency: {
+        type: String,
+        default: 'INR',
+        trim: true
+      }
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'

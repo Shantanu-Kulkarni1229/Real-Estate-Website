@@ -98,6 +98,14 @@ const AdminPropertiesPage = () => {
   const [isLoadingSubscriptionFees, setIsLoadingSubscriptionFees] = useState(false)
   const [isSavingSubscriptionFees, setIsSavingSubscriptionFees] = useState(false)
   const [subscriptionMessage, setSubscriptionMessage] = useState('')
+  const [promotionFee, setPromotionFee] = useState(0)
+  const [isLoadingPromotionFee, setIsLoadingPromotionFee] = useState(false)
+  const [isSavingPromotionFee, setIsSavingPromotionFee] = useState(false)
+  const [promotionFeeMessage, setPromotionFeeMessage] = useState('')
+  const [promotionItems, setPromotionItems] = useState([])
+  const [promotionStatusFilter, setPromotionStatusFilter] = useState('pending')
+  const [isLoadingPromotions, setIsLoadingPromotions] = useState(false)
+  const [promotionActionId, setPromotionActionId] = useState(null)
   const [error, setError] = useState('')
   const [selectedProperty, setSelectedProperty] = useState(null)
 
@@ -248,10 +256,58 @@ const AdminPropertiesPage = () => {
     }
   }, [token])
 
+  const loadPromotionFee = useCallback(async () => {
+    if (!token) {
+      return
+    }
+
+    setIsLoadingPromotionFee(true)
+    setPromotionFeeMessage('')
+
+    try {
+      const response = await apiRequest('/admin/promotion-fees', { token })
+      setPromotionFee(Number(response?.data?.perDayAmount || 0))
+    } catch (feeError) {
+      setPromotionFeeMessage(feeError.message || 'Failed to load promotion fee')
+    } finally {
+      setIsLoadingPromotionFee(false)
+    }
+  }, [token])
+
+  const loadPromotionsForReview = useCallback(async (status = promotionStatusFilter) => {
+    if (!token) {
+      return
+    }
+
+    setIsLoadingPromotions(true)
+
+    try {
+      const query = new URLSearchParams({
+        page: '1',
+        limit: '20',
+        approvalStatus: status,
+        paymentStatus: 'paid'
+      })
+
+      const response = await apiRequest(`/admin/promotions?${query.toString()}`, { token })
+      setPromotionItems(Array.isArray(response?.data) ? response.data : [])
+    } catch (promotionError) {
+      setPromotionFeeMessage(promotionError.message || 'Failed to load promotions')
+    } finally {
+      setIsLoadingPromotions(false)
+    }
+  }, [promotionStatusFilter, token])
+
   useEffect(() => {
     loadStats()
     loadSubscriptionFees()
-  }, [loadStats, loadSubscriptionFees])
+    loadPromotionFee()
+    loadPromotionsForReview('pending')
+  }, [loadStats, loadSubscriptionFees, loadPromotionFee, loadPromotionsForReview])
+
+  useEffect(() => {
+    loadPromotionsForReview(promotionStatusFilter)
+  }, [loadPromotionsForReview, promotionStatusFilter])
 
   useEffect(() => {
     if (activeTab === 'overview' || activeTab === 'reports') {
@@ -625,6 +681,69 @@ const AdminPropertiesPage = () => {
     }
   }
 
+  const handleSavePromotionFee = async () => {
+    if (!token) {
+      return
+    }
+
+    setIsSavingPromotionFee(true)
+    setPromotionFeeMessage('')
+
+    try {
+      const response = await apiRequest('/admin/promotion-fees', {
+        method: 'PUT',
+        token,
+        body: {
+          perDayAmount: Number(promotionFee || 0),
+          currency: 'INR'
+        }
+      })
+
+      setPromotionFee(Number(response?.data?.perDayAmount || 0))
+      setPromotionFeeMessage('Promotion daily fee updated successfully.')
+    } catch (promotionError) {
+      setPromotionFeeMessage(promotionError.message || 'Failed to update promotion daily fee')
+    } finally {
+      setIsSavingPromotionFee(false)
+    }
+  }
+
+  const handleReviewPromotion = async (promotionId, status) => {
+    if (!token) {
+      return
+    }
+
+    const reviewMessage = status === 'rejected'
+      ? window.prompt('Enter rejection reason for this promotion:')
+      : window.prompt('Optional approval note for this promotion:')
+
+    if (status === 'rejected' && !String(reviewMessage || '').trim()) {
+      setPromotionFeeMessage('Rejection reason is required.')
+      return
+    }
+
+    setPromotionActionId(promotionId)
+    setPromotionFeeMessage('')
+
+    try {
+      await apiRequest(`/admin/promotions/${promotionId}/review`, {
+        method: 'PATCH',
+        token,
+        body: {
+          status,
+          reviewMessage: String(reviewMessage || '').trim()
+        }
+      })
+
+      setPromotionItems((current) => current.filter((item) => item._id !== promotionId))
+      setPromotionFeeMessage(`Promotion ${status} successfully.`)
+    } catch (promotionError) {
+      setPromotionFeeMessage(promotionError.message || 'Failed to review promotion')
+    } finally {
+      setPromotionActionId(null)
+    }
+  }
+
   const renderPropertyTab = () => (
     <section className="space-y-5">
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
@@ -879,6 +998,109 @@ const AdminPropertiesPage = () => {
             <p className="text-sm text-slate-600">Loading subscription configuration...</p>
           ) : null}
         </div>
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Homepage Promotion Pricing</p>
+        <p className="mt-1 text-sm text-slate-600">Set per-day campaign pricing (INR) and moderate paid campaigns.</p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,220px)_auto] sm:items-end">
+          <label className="rounded-2xl border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Per Day Fee</p>
+            <input
+              type="number"
+              min="0"
+              value={promotionFee}
+              onChange={(event) => setPromotionFee(event.target.value === '' ? '' : Number(event.target.value))}
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-(--color-primary)"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={handleSavePromotionFee}
+            disabled={isLoadingPromotionFee || isSavingPromotionFee}
+            className="h-10.5 rounded-xl bg-(--color-primary) px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isSavingPromotionFee ? 'Saving...' : 'Save Promotion Fee'}
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['pending', 'approved', 'rejected'].map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setPromotionStatusFilter(status)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
+                promotionStatusFilter === status
+                  ? 'bg-(--color-primary) text-white'
+                  : 'bg-white text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {isLoadingPromotions ? (
+            <p className="text-sm text-slate-600">Loading promotions...</p>
+          ) : promotionItems.length === 0 ? (
+            <p className="text-sm text-slate-600">No paid campaigns found for this status.</p>
+          ) : promotionItems.map((item) => (
+            <article key={item._id} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    By {getFullName(item.createdBy, 'Unknown')} · {item.days} days · INR {Number(item.totalAmount || 0).toLocaleString('en-IN')}
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-700">
+                  {item.approvalStatus}
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a href={item.imageUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                  View Image
+                </a>
+                {item.redirectUrl ? (
+                  <a href={item.redirectUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                    Visit Redirect URL
+                  </a>
+                ) : null}
+                {item.approvalStatus === 'pending' ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={promotionActionId === item._id}
+                      onClick={() => handleReviewPromotion(item._id, 'approved')}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-70"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={promotionActionId === item._id}
+                      onClick={() => handleReviewPromotion(item._id, 'rejected')}
+                      className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-70"
+                    >
+                      Reject
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {promotionFeeMessage ? (
+          <p className="mt-3 text-sm text-slate-600">{promotionFeeMessage}</p>
+        ) : isLoadingPromotionFee ? (
+          <p className="mt-3 text-sm text-slate-600">Loading promotion configuration...</p>
+        ) : null}
       </div>
 
       {error ? (

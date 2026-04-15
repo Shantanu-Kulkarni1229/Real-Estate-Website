@@ -23,6 +23,28 @@ function normalizeTextList(text) {
     .filter(Boolean)
 }
 
+function normalizeAmenitiesList(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+}
+
+function mergeAmenities(form) {
+  const selectedAmenities = normalizeAmenitiesList(form.selectedAmenities)
+  const customAmenities = normalizeTextList(form.customAmenitiesText)
+  const seen = new Set()
+
+  return [...selectedAmenities, ...customAmenities].filter((amenity) => {
+    const key = amenity.toLowerCase()
+    if (seen.has(key)) {
+      return false
+    }
+
+    seen.add(key)
+    return true
+  })
+}
+
 function cleanNumber(value) {
   if (value === '' || value === null || value === undefined) {
     return undefined
@@ -89,9 +111,11 @@ function buildPayload(form, uploadedImages) {
     }))
     .filter((unit) => unit.price !== undefined)
 
-  const derivedPrice = unitConfigurations.length > 0
+  const monthlyRent = cleanNumber(form.rentMonthlyAmount)
+  const salePrice = unitConfigurations.length > 0
     ? Math.min(...unitConfigurations.map((unit) => Number(unit.price)))
-    : Number(form.price)
+    : cleanNumber(form.price)
+  const derivedPrice = form.listingType === 'rent' ? monthlyRent : salePrice
 
   return {
     title: form.title.trim(),
@@ -101,19 +125,26 @@ function buildPayload(form, uploadedImages) {
     price: derivedPrice,
     unitConfigurations,
     negotiable: form.negotiable,
+    possessionStatus: form.possessionStatus,
+    possessionDate: form.possessionStatus === 'under_construction' ? (form.possessionDate || undefined) : undefined,
     address: form.address.trim(),
     city: form.city.trim(),
     state: form.state.trim(),
     pincode: form.pincode.trim(),
     locality: form.locality.trim() || undefined,
     landmark: form.landmark.trim() || undefined,
-    latitude: cleanNumber(form.latitude),
-    longitude: cleanNumber(form.longitude),
+    googleMapsLink: form.googleMapsLink.trim() || undefined,
     specifications: buildSpecifications(form),
-    amenities: normalizeTextList(form.amenitiesText),
+    amenities: mergeAmenities(form),
     images: uploadedImages,
     videos: normalizeTextList(form.videosText),
-    virtualTourUrl: form.virtualTourUrl.trim() || undefined,
+    rentDetails: form.listingType === 'rent'
+      ? {
+          monthlyRent,
+          depositRequired: Boolean(form.rentDepositRequired),
+          securityDeposit: form.rentDepositRequired ? cleanNumber(form.rentSecurityDeposit) : undefined,
+        }
+      : undefined,
     ownerName: form.ownerName.trim(),
     contactNumber: form.contactNumber.trim(),
     ownershipType: form.ownershipType,
@@ -126,6 +157,10 @@ function validateForm(form, imageFiles) {
 
   if (!form.title.trim()) missing.push('title')
   if (!form.description.trim()) missing.push('description')
+  if (!form.possessionStatus) missing.push('possession status')
+  if (form.possessionStatus === 'under_construction' && !form.possessionDate) {
+    missing.push('possession date')
+  }
   if (form.hasMultipleUnits) {
     const validUnits = (Array.isArray(form.unitConfigurations) ? form.unitConfigurations : [])
       .map((unit) => ({
@@ -138,8 +173,16 @@ function validateForm(form, imageFiles) {
     if (validUnits.length === 0) {
       missing.push('at least one unit price')
     }
-  } else if (!form.price) {
+  } else if (form.listingType !== 'rent' && !form.price) {
     missing.push('price')
+  }
+
+  if (form.listingType === 'rent' && !form.rentMonthlyAmount) {
+    missing.push('monthly rent')
+  }
+
+  if (form.listingType === 'rent' && form.rentDepositRequired && !form.rentSecurityDeposit) {
+    missing.push('security deposit')
   }
   if (!form.address.trim()) missing.push('address')
   if (!form.city.trim()) missing.push('city')
@@ -204,10 +247,29 @@ const PropertyListingForm = () => {
   }, [imageFiles])
 
   const handleChange = (field, value) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value
-    }))
+    setForm((current) => {
+      if (field === 'listingType' && value === 'rent') {
+        return {
+          ...current,
+          listingType: value,
+          hasMultipleUnits: false,
+          unitConfigurations: [createEmptyUnitConfiguration()],
+        }
+      }
+
+      if (field === 'rentDepositRequired' && !value) {
+        return {
+          ...current,
+          rentDepositRequired: false,
+          rentSecurityDeposit: ''
+        }
+      }
+
+      return {
+        ...current,
+        [field]: value
+      }
+    })
   }
 
   const handleNestedChange = (section, field, value) => {

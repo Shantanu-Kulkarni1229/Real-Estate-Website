@@ -134,6 +134,20 @@ const propertySchema = new mongoose.Schema(
       required: [true, 'Price is required'],
       min: [0, 'Price cannot be negative']
     },
+    rentDetails: {
+      monthlyRent: {
+        type: Number,
+        min: [0, 'Monthly rent cannot be negative']
+      },
+      depositRequired: {
+        type: Boolean,
+        default: false
+      },
+      securityDeposit: {
+        type: Number,
+        min: [0, 'Security deposit cannot be negative']
+      }
+    },
     unitConfigurations: {
       type: [unitConfigurationSchema],
       default: [],
@@ -147,6 +161,15 @@ const propertySchema = new mongoose.Schema(
     negotiable: {
       type: Boolean,
       default: false
+    },
+    possessionStatus: {
+      type: String,
+      enum: ['ready_to_move', 'under_construction'],
+      default: 'ready_to_move',
+      required: [true, 'Possession status is required']
+    },
+    possessionDate: {
+      type: Date
     },
 
     address: {
@@ -174,6 +197,10 @@ const propertySchema = new mongoose.Schema(
     },
     landmark: {
       type: String
+    },
+    googleMapsLink: {
+      type: String,
+      trim: true
     },
     latitude: { type: Number },
     longitude: { type: Number },
@@ -208,9 +235,6 @@ const propertySchema = new mongoose.Schema(
         },
         message: 'Maximum 5 videos allowed'
       }
-    },
-    virtualTourUrl: {
-      type: String
     },
 
     ownerName: {
@@ -267,6 +291,40 @@ propertySchema.pre('validate', function preValidate(next) {
 
   if (!this.sellerId && this.createdBy) {
     this.sellerId = this.createdBy;
+  }
+
+  if (this.possessionStatus === 'under_construction' && !this.possessionDate) {
+    this.invalidate('possessionDate', 'Possession date is required for under construction properties');
+  }
+
+  if (this.possessionStatus !== 'under_construction') {
+    this.possessionDate = undefined;
+  }
+
+  if (this.listingType === 'rent') {
+    if (!this.rentDetails) {
+      this.rentDetails = {};
+    }
+
+    if (this.rentDetails.monthlyRent === undefined || this.rentDetails.monthlyRent === null) {
+      this.rentDetails.monthlyRent = this.price;
+    }
+
+    if (this.rentDetails.monthlyRent === undefined || this.rentDetails.monthlyRent === null) {
+      this.invalidate('rentDetails.monthlyRent', 'Monthly rent is required for rent listings');
+    } else {
+      this.price = this.rentDetails.monthlyRent;
+    }
+
+    if (this.rentDetails.depositRequired && (this.rentDetails.securityDeposit === undefined || this.rentDetails.securityDeposit === null)) {
+      this.invalidate('rentDetails.securityDeposit', 'Security deposit is required when deposit is marked as required');
+    }
+
+    if (!this.rentDetails.depositRequired) {
+      this.rentDetails.securityDeposit = undefined;
+    }
+  } else {
+    this.rentDetails = undefined;
   }
 
   next();

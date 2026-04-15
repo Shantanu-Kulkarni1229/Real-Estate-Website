@@ -62,7 +62,7 @@ const DUMMY_REVIEWS = [
     role: 'buyer',
     city: 'Jaipur',
     rating: 4,
-    reviewText: 'Loved the virtual tours feature! Made it easy to explore properties before scheduling visits.'
+    reviewText: 'Loved the video walkthrough feature! Made it easy to explore properties before scheduling visits.'
   },
   {
     displayName: 'Nikhil Verma',

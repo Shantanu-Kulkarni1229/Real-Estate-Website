@@ -319,7 +319,6 @@ Create property (`POST /api/v1/properties`, seller/admin):
   "amenities": ["Gym", "Lift", "Security"],
   "images": ["https://.../image1.jpg"],
   "videos": [],
-  "virtualTourUrl": "https://example.com/tour/prop123",
   "ownerName": "Anita Verma",
   "contactNumber": "8888888888",
   "ownershipType": "freehold",

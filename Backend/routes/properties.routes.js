@@ -4,6 +4,7 @@ const authorize = require('../middleware/authorize');
 const {
   createProperty,
   getProperties,
+  getMyListings,
   getPropertyById,
   updateProperty,
   deleteProperty
@@ -12,6 +13,7 @@ const {
 const router = express.Router();
 
 router.get('/', getProperties);
+router.get('/my-listings', authenticate, authorize('owner', 'agent', 'builder', 'seller', 'admin'), getMyListings);
 router.get('/:propertyId', getPropertyById);
 
 router.post('/', authenticate, authorize('owner', 'agent', 'builder', 'buyer', 'renter', 'admin', 'seller'), createProperty);

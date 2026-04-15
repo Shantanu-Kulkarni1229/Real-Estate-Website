@@ -14,6 +14,12 @@ const {
   getSubscriptionFees,
   updateSubscriptionFees
 } = require('../controllers/admin.controller');
+const {
+  getPromotionFeeConfig,
+  updatePromotionFeeConfig,
+  getPromotionsForReview,
+  reviewPromotion
+} = require('../controllers/promotions.controller');
 
 const router = express.Router();
 
@@ -35,5 +41,10 @@ router.delete('/leads/:leadId', deleteLead);
 
 router.get('/subscription-fees', getSubscriptionFees);
 router.put('/subscription-fees', updateSubscriptionFees);
+router.get('/promotion-fees', getPromotionFeeConfig);
+router.put('/promotion-fees', updatePromotionFeeConfig);
+
+router.get('/promotions', getPromotionsForReview);
+router.patch('/promotions/:promotionId/review', reviewPromotion);
 
 module.exports = router;

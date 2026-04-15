@@ -37,35 +37,29 @@ const socialLinks = [
 
 const Footer = () => {
   return (
-    <footer className="relative overflow-hidden bg-[#2563eb] text-white">
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute left-[-6rem] top-[-5rem] h-56 w-56 rounded-full bg-[#f97316]/30 blur-3xl" />
-        <div className="absolute right-[-4rem] top-20 h-72 w-72 rounded-full bg-[#16a34a]/20 blur-3xl" />
-        <div className="absolute bottom-[-5rem] left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mb-10 rounded-3xl border border-white/15 bg-white/10 p-6 shadow-2xl backdrop-blur-md sm:p-8 lg:flex lg:items-center lg:justify-between">
+    <footer className="bg-[#0f172a] text-slate-100 antialiased">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mb-10 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl sm:p-8 lg:flex lg:items-center lg:justify-between">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-white/70">CityPloter</p>
-            <h2 className="mt-3 text-3xl font-bold leading-tight sm:text-4xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">CityPloter</p>
+            <h2 className="mt-3 text-3xl font-semibold leading-[1.15] sm:text-4xl lg:text-[2.5rem]">
               Find the right property faster with a premium experience.
             </h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-white/80 sm:text-base">
+            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
               Explore verified listings, post your own property, and connect with real buyers and renters in one polished platform.
-            </p>
+            </p>  
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:mt-0">
             <Link
               to="/search"
-              className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-[#2563eb] shadow-lg transition duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+              className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-lg transition duration-200 hover:-translate-y-0.5 hover:shadow-xl"
             >
               Explore Listings
             </Link>
             <Link
               to="/post-property"
-              className="inline-flex items-center justify-center rounded-full border border-white/30 bg-[#f97316] px-6 py-3 text-sm font-semibold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 hover:brightness-95"
+              className="inline-flex items-center justify-center rounded-full border border-teal-300/40 bg-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 hover:bg-teal-500"
             >
               Post Property
             </Link>
@@ -75,16 +69,16 @@ const Footer = () => {
         <div className="grid gap-10 lg:grid-cols-[1.4fr_0.9fr_0.9fr_1fr]">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#2563eb] shadow-lg shadow-black/10">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-900 shadow-lg shadow-black/10">
                 <span className="text-xl font-black">C</span>
               </div>
               <div>
-                <p className="text-lg font-bold">CityPloter</p>
-                <p className="text-sm text-white/75">Modern real estate discovery</p>
+                <p className="text-lg font-semibold tracking-wide">CityPloter</p>
+                <p className="text-sm text-slate-300">Modern real estate discovery</p>
               </div>
             </div>
 
-            <p className="mt-5 max-w-md text-sm leading-6 text-white/80">
+            <p className="mt-5 max-w-md text-sm leading-6 text-slate-300">
               A refined real-estate platform designed to help users discover, compare, and act on properties with confidence.
             </p>
 
@@ -94,20 +88,20 @@ const Footer = () => {
                 { value: '4.9/5', label: 'Rating' },
                 { value: '24/7', label: 'Support' },
               ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-white/15 bg-white/10 p-4 text-center">
+                <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center">
                   <p className="text-lg font-bold">{item.value}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.24em] text-white/65">{item.label}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-300/80">{item.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.28em] text-white/70">Quick Links</h3>
-            <ul className="mt-5 space-y-3 text-sm text-white/85">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-300">Quick Links</h3>
+            <ul className="mt-5 space-y-3 text-sm text-slate-200">
               {quickLinks.map((link) => (
                 <li key={link.label}>
-                  <Link className="transition duration-200 hover:text-white" to={link.to}>
+                  <Link className="transition duration-200 hover:text-teal-300" to={link.to}>
                     {link.label}
                   </Link>
                 </li>
@@ -116,11 +110,11 @@ const Footer = () => {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.28em] text-white/70">Services</h3>
-            <ul className="mt-5 space-y-3 text-sm text-white/85">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-300">Services</h3>
+            <ul className="mt-5 space-y-3 text-sm text-slate-200">
               {serviceLinks.map((link) => (
                 <li key={link.label}>
-                  <Link className="transition duration-200 hover:text-white" to={link.to}>
+                  <Link className="transition duration-200 hover:text-teal-300" to={link.to}>
                     {link.label}
                   </Link>
                 </li>
@@ -129,16 +123,16 @@ const Footer = () => {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-[0.28em] text-white/70">Contact</h3>
-            <ul className="mt-5 space-y-3 text-sm text-white/85">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-300">Contact</h3>
+            <ul className="mt-5 space-y-3 text-sm text-slate-200">
               {contactLinks.map((link) => (
                 <li key={link.label}>
                   {link.href.startsWith('mailto:') || link.href.startsWith('tel:') ? (
-                    <a className="transition duration-200 hover:text-white" href={link.href}>
+                    <a className="transition duration-200 hover:text-teal-300" href={link.href}>
                       {link.label}
                     </a>
                   ) : (
-                    <Link className="transition duration-200 hover:text-white" to={link.href}>
+                    <Link className="transition duration-200 hover:text-teal-300" to={link.href}>
                       {link.label}
                     </Link>
                   )}
@@ -152,7 +146,7 @@ const Footer = () => {
                   key={icon.label}
                   href="#"
                   aria-label={icon.label}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/20"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-100 transition duration-200 hover:-translate-y-0.5 hover:border-teal-300/50 hover:bg-teal-500/20"
                   onClick={(event) => event.preventDefault()}
                 >
                   <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -164,13 +158,13 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-4 border-t border-white/15 pt-6 text-sm text-white/70 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-12 flex flex-col gap-4 border-t border-white/10 pt-6 text-sm text-slate-300 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 CityPloter. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-4">
             <span>Verified listings</span>
-            <span className="h-1 w-1 rounded-full bg-white/50" />
+            <span className="h-1 w-1 rounded-full bg-slate-400/70" />
             <span>Secure connections</span>
-            <span className="h-1 w-1 rounded-full bg-white/50" />
+            <span className="h-1 w-1 rounded-full bg-slate-400/70" />
             <span>Built for modern real estate</span>
           </div>
         </div>
